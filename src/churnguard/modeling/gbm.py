@@ -37,6 +37,9 @@ class ChurnModel:
     levels: dict[str, list[str]] = field(default_factory=dict)
     calibrator: IsotonicRegression | None = None
     best_iteration: int | None = None
+    num_boost_round: int = 200  # used when fit() is called without early stopping
+    # Monotone constraints by feature name: +1 = can only raise churn risk, -1 = only lower it.
+    monotone: dict[str, int] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ encoding
     def _encode(self, X: pd.DataFrame) -> pd.DataFrame:
@@ -53,10 +56,23 @@ class ChurnModel:
                        for c in self.categorical}
 
     # ------------------------------------------------------------------ training
-    def fit(self, X: pd.DataFrame, y, X_valid: pd.DataFrame | None = None, y_valid=None,
-            num_boost_round: int = 2000, early_stopping_rounds: int = 100) -> ChurnModel:
-        self._learn_levels(X)
+    def _lgb_params(self) -> dict:
         params = {**BASE_PARAMS, **self.params}
+        if self.monotone:
+            unknown = set(self.monotone) - set(self.features)
+            if unknown:
+                raise ValueError(f"monotone constraints on unknown features: {sorted(unknown)}")
+            params["monotone_constraints"] = [self.monotone.get(f, 0) for f in self.features]
+            params["monotone_constraints_method"] = "advanced"
+        return params
+
+    def fit(self, X: pd.DataFrame, y, X_valid: pd.DataFrame | None = None, y_valid=None,
+            num_boost_round: int | None = None,
+            early_stopping_rounds: int = 100) -> ChurnModel:
+        self._learn_levels(X)
+        params = self._lgb_params()
+        if num_boost_round is None:
+            num_boost_round = 2000 if X_valid is not None else self.num_boost_round
         train = lgb.Dataset(self._encode(X), label=np.asarray(y),
                             categorical_feature=self.categorical, free_raw_data=True)
         callbacks, valid_sets = [], []
