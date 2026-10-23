@@ -78,22 +78,42 @@ def months_between(spec: str) -> list[str]:
     return out
 
 
+def paid_through_sql(txn_src: str, as_of: date, members: str | None = None) -> str:
+    """(member_id, last_expire): paid-through date as of `as_of` = expiry of the last
+    transaction before it under the official ordering. Optionally restricted to a relation
+    of member_ids. Shared by the spine, the batch scorer and the API."""
+    only = f"AND member_id IN (SELECT member_id FROM {members})" if members else ""
+    return f"""
+        SELECT member_id, membership_expire_date AS last_expire
+        FROM {txn_src}
+        WHERE transaction_date < DATE '{as_of}' {only}
+        QUALIFY row_number() OVER (PARTITION BY member_id ORDER BY {ORDER_DESC}) = 1
+    """
+
+
+def due_population_sql(month: str, txn_src: str) -> str:
+    """(member_id, as_of_date, last_expire) for everyone due in `month`: any transaction
+    before the month expiring inside it. The spine's population without labels, so batch
+    scoring selects exactly who the model was trained on."""
+    m_start, m_end = month_bounds(month)
+    return f"""
+        WITH due AS (
+            SELECT DISTINCT member_id FROM {txn_src}
+            WHERE transaction_date < DATE '{m_start}'
+              AND membership_expire_date BETWEEN DATE '{m_start}' AND DATE '{m_end}'
+        )
+        SELECT member_id, DATE '{m_start}' AS as_of_date, last_expire
+        FROM ({paid_through_sql(txn_src, m_start, members='due')})
+    """
+
+
 def label_month_sql(month: str, txn_src: str, data_end: date) -> str:
     """SELECT producing (member_id, label_month, as_of_date, last_expire, renewal_gap_days,
     is_churn, label_status) for one label month, given the last observed transaction date."""
     m_start, m_end = month_bounds(month)
     return f"""
-    WITH history AS (
-        SELECT * FROM {txn_src} WHERE transaction_date < DATE '{m_start}'
-    ),
-    due_in_month AS (
-        SELECT DISTINCT member_id FROM history
-        WHERE membership_expire_date BETWEEN DATE '{m_start}' AND DATE '{m_end}'
-    ),
-    candidates AS (
-        SELECT h.member_id, h.membership_expire_date AS last_expire
-        FROM history h SEMI JOIN due_in_month USING (member_id)
-        QUALIFY row_number() OVER (PARTITION BY h.member_id ORDER BY {ORDER_DESC}) = 1
+    WITH candidates AS (
+        SELECT member_id, last_expire FROM ({due_population_sql(month, txn_src)})
     ),
     future AS (
         SELECT f.*, c.last_expire,
