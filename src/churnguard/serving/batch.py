@@ -1,7 +1,8 @@
 """Batch scorer: everyone due in a month, scored by the champion, written for the CRM.
 
-Output gold/scores/score_month=YYYY-MM/data.parquet, one row per member due that month:
-p_churn, value, contact decision, top-3 reasons, msno for the CRM, model name/version.
+Output gold/scores/score_month=YYYY-MM/: data.parquet (one row per member due that month:
+p_churn, value, contact decision, top-3 reasons, msno for the CRM, model name/version) and
+features.parquet (the exact model inputs, for monitoring and audit).
 
 Usage:
   python -m churnguard.serving.batch                  # month after the last transaction
@@ -57,6 +58,8 @@ def score_month(settings: Settings, month: str, model, model_info: dict,
     final = settings.paths.gold / "scores" / f"score_month={month}"
     staging = fresh_staging(final)
     scored.to_parquet(staging / "data.parquet", index=False)
+    # Exactly what the model saw: input to drift monitoring and an audit trail.
+    raw.to_parquet(staging / "features.parquet", index=False)
     manifest = {
         "score_month": month, "rows": len(scored), "model": model_info,
         "contacted": int(scored.contact.sum()),
