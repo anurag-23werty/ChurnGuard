@@ -16,7 +16,7 @@ test:
 	uv run pytest
 
 .PHONY: download
-download:  ## Fetch KKBox archives from Kaggle (needs ~/.kaggle/kaggle.json + accepted rules)
+download:  ## Fetch KKBox archives from Kaggle (needs ~/.kaggle/access_token + accepted rules)
 	$(PY) -m churnguard.data.download
 
 .PHONY: bronze

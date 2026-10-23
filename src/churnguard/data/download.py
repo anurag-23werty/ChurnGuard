@@ -2,7 +2,8 @@
 
 Files are fetched one at a time (not the whole competition zip) so we never hold the
 bundle and its extracted copy on disk at once. Requires:
-  1. ~/.kaggle/kaggle.json (or KAGGLE_USERNAME / KAGGLE_KEY), and
+  1. an API token in ~/.kaggle/access_token or KAGGLE_API_TOKEN
+     (legacy ~/.kaggle/kaggle.json also works), and
   2. the competition rules accepted on kaggle.com.
 
 Usage:

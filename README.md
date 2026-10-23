@@ -27,7 +27,7 @@ brew install sevenzip            # streams .7z archives without extracting to di
 uv sync                          # create .venv from uv.lock
 make test
 
-# Kaggle: put kaggle.json in ~/.kaggle and accept the competition rules first
+# Kaggle: save your API token to ~/.kaggle/access_token (chmod 600) and accept the rules first
 make download                    # data/raw/*.7z
 make ingest                      # raw -> bronze Parquet + DQ report
 make ingest MONTHS=2016-10:2017-03   # or a smaller window on a constrained machine
