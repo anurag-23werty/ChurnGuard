@@ -157,8 +157,10 @@ def run_table(con: duckdb.DuckDBPyConnection, settings: Settings, table: str) ->
             results.append(CheckResult(rule.name, status, round(share, 6), rule.predicate))
 
         if keys := DUPLICATE_KEYS.get(table):
-            cols = ", ".join(keys)
-            dups = _q(con, f"SELECT count(*) - count(DISTINCT ({cols})) FROM {src}")[0][0]
+            # Distinct over a 64-bit hash, not the raw string keys: on 150M+ user_log rows the
+            # string version needs a >10 GB hash table. Expected false collisions ≈ n²/2^65.
+            dups = _q(con, f"SELECT count(*) - count(DISTINCT hash({', '.join(keys)})) "
+                           f"FROM {src}")[0][0]
             results.append(CheckResult(f"duplicate_{'_'.join(keys)}", WARN if dups else PASS,
                                        dups))
 
@@ -169,7 +171,7 @@ def run_table(con: duckdb.DuckDBPyConnection, settings: Settings, table: str) ->
                 # v2 refresh files overlap v1 in KKBox; silver must de-duplicate on this.
                 overlap = _q(con, f"""
                     SELECT count(*) FROM (
-                        SELECT msno, {spec.partition_by} FROM {src} GROUP BY ALL
+                        SELECT hash(msno, {spec.partition_by}) AS k FROM {src} GROUP BY k
                         HAVING count(DISTINCT source) > 1)
                 """)[0][0]
                 results.append(CheckResult("cross_source_overlap", WARN if overlap else PASS,
