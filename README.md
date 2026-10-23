@@ -1,138 +1,221 @@
-# ChurnGuard
+<p align="center">
+  <img src="docs/assets/hero.svg" alt="ChurnGuard: churn prediction and value-based retention for KKBox" width="100%">
+</p>
 
-End-to-end churn prediction and retention platform on the KKBox music-subscription dataset
-(~400M listening-log rows): out-of-core data engineering, point-in-time features,
-a calibrated and explainable model, value-based retention targeting, serving, and monitoring.
+<p align="center">
+  <a href="https://github.com/anurag-23werty/ChurnGuard/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/anurag-23werty/ChurnGuard/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-135%20py%20%2B%209%20web-3DD9E3">
+  <img alt="Warnings are errors" src="https://img.shields.io/badge/pytest-warnings%20%3D%20errors-9B8CFF">
+  <img alt="Data" src="https://img.shields.io/badge/data-410M%20rows-F5B53D">
+</p>
 
-![ci](https://github.com/anurag-23werty/ChurnGuard/actions/workflows/ci.yml/badge.svg)
+<p align="center">
+  <img alt="DuckDB" src="https://img.shields.io/badge/DuckDB-out--of--core%20SQL-FFF000?logo=duckdb&logoColor=black">
+  <img alt="Parquet" src="https://img.shields.io/badge/Parquet-zstd-50ABF1">
+  <img alt="Pandera" src="https://img.shields.io/badge/Pandera-contracts-6C5CE7">
+  <img alt="scikit-learn" src="https://img.shields.io/badge/scikit--learn-logreg-F7931E?logo=scikitlearn&logoColor=white">
+  <img alt="LightGBM" src="https://img.shields.io/badge/LightGBM-%2B%20Optuna-2E7D32">
+  <img alt="MLflow" src="https://img.shields.io/badge/MLflow-registry-0194E2?logo=mlflow&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-serving-009688?logo=fastapi&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-non--root-2496ED?logo=docker&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white">
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white">
+  <img alt="Streamlit" src="https://img.shields.io/badge/Streamlit-console-FF4B4B?logo=streamlit&logoColor=white">
+  <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-4%20jobs-2088FF?logo=githubactions&logoColor=white">
+</p>
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and what changed while
-building it.
+<p align="center">
+  <b>Which subscribers are about to cancel, and which of them are worth paying to keep?</b><br>
+  An end-to-end, production-style ML system on the KKBox music-subscription dataset: out-of-core data
+  engineering, leak-proof point-in-time features, a robust and calibrated model, expected-value
+  retention targeting, an API, two consoles and monitoring that knows the difference between
+  data drift and concept drift.
+</p>
 
-## Results at a glance
+<p align="center">
+  <a href="#-results-at-a-glance">Results</a> ·
+  <a href="#-architecture">Architecture</a> ·
+  <a href="#-data-and-how-it-connects">Data</a> ·
+  <a href="#-the-build-phase-by-phase">Phases</a> ·
+  <a href="#-models-and-metrics">Models</a> ·
+  <a href="#-why-this-and-not-that">Decisions</a> ·
+  <a href="#-run-it-locally">Run it</a>
+</p>
 
-| | |
+---
+
+## ✨ Results at a glance
+
+| | Result |
 |---|---|
-| Data | 410M raw rows ingested in ~4.5 min; 155.5M-row log window; silver build 46 s |
-| Labels | official KKBox labeller ported to SQL; 99% population match, 96-98% label agreement |
-| Features | 52 point-in-time features; leakage tests verified by mutating the guards |
-| Champion | logistic regression: mean out-of-time AUC 0.896, worst month 0.832; March test 0.853 AUC excl. early renewers |
-| Decisioning | EV targeting contacts 1.4% for +976k NTD on the Feb backtest (20% save-rate assumption) |
-| Serving | April: 1,012,577 members in 19 s; API ~90 ms, identical to batch; Docker healthy |
-| Monitoring | April ok (score PSI 0.008); replay shows Dec 2016 was concept drift, caught only by delayed labels |
-| Quality | 129 tests, warnings are errors, CI on every push |
+| ![data](https://img.shields.io/badge/-data-F5B53D?style=flat-square) | **410M raw rows** ingested in ~4.5 min without ever unpacking a CSV to disk; 155.5M-row log window; silver build in **46 s** |
+| ![labels](https://img.shields.io/badge/-labels-9B8CFF?style=flat-square) | KKBox's official Scala labeller ported to SQL: **99%** population match, **96–98%** label agreement |
+| ![features](https://img.shields.io/badge/-features-9B8CFF?style=flat-square) | **52 point-in-time features**; three leakage tests, each proven by deliberately breaking the code |
+| ![model](https://img.shields.io/badge/-model-3DD9E3?style=flat-square) | Champion **logistic regression**: mean out-of-time AUC **0.896**, worst month **0.832**; March holdout **0.853** AUC (official labels, excl. early renewers) |
+| ![decide](https://img.shields.io/badge/-decisioning-3DD9E3?style=flat-square) | EV targeting contacts **1.4%** of members for **+976k NTD** on the Feb backtest, beating risk-ranking and any fixed cut-off |
+| ![serve](https://img.shields.io/badge/-serving-3DD9E3?style=flat-square) | **1,012,577** April members scored in **19 s**; API ~90 ms, **bit-identical** to batch; Docker healthy |
+| ![monitor](https://img.shields.io/badge/-monitoring-F5B53D?style=flat-square) | April **ok** (score PSI 0.008); the replay proved Dec 2016 was **concept drift**, which only delayed labels can catch |
+| ![ui](https://img.shields.io/badge/-consoles-FF4B4B?style=flat-square) | React web console (7 pages) and Streamlit console, both reading only real pipeline outputs |
+| ![quality](https://img.shields.io/badge/-quality-2088FF?style=flat-square) | **135 Python + 9 web tests**, warnings are errors, 4-job CI on every push |
 
-## Status
+---
 
-- [x] Phase 0: architecture
-- [x] Phase 1: ingestion (raw → bronze Parquet)
-- [x] Phase 2: cleaning (silver)
-- [x] Phase 3: label spine
-- [x] Phase 4: point-in-time features
-- [x] Phase 5: baselines
-- [x] Phase 6: model selection (LightGBM, blends, calibration, SHAP, MLflow registry)
-- [x] Phase 7: retention decisioning (expected-value targeting + backtest)
-- [x] Phase 8: serving (batch scorer, FastAPI, Docker)
-- [x] Phase 9: monitoring (drift, delayed-label performance, retrain rule)
-- [x] Phase 10: retention console, CI, `make pipeline`
+## 🏗 Architecture
 
-## Install
+<p align="center">
+  <img src="docs/assets/pipeline.svg" alt="Medallion pipeline: Kaggle archives to bronze, silver, gold, models, serving and consoles, with a monitoring loop and Drive cold storage" width="100%">
+</p>
 
-Python 3.11+ (developed on 3.13). Either tool works; both use the same pinned versions.
+The whole system is one reproducible chain of `make` targets (`make pipeline`). Each step writes
+to a staging directory and publishes atomically, so a failed run never leaves half-written
+outputs. Design notes and what changed while building are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-```bash
-# uv (recommended)
-uv sync
-
-# or plain pip
-python3.13 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt   # runtime + tests/lint
-pytest                                                     # 135 tests, ~20 s
+```mermaid
+flowchart LR
+  subgraph Offline["Offline (monthly)"]
+    R[(raw .7z)] -->|stream 7zz x -so| B[(bronze Parquet)]
+    B -->|DQ gate| S[(silver)]
+    S --> SP[label spine]
+    S --> F[52 features]
+    SP --> F
+    F --> T[train · select · gate v2]
+    T --> REG[(MLflow registry<br/>champion alias)]
+    REG --> BS[batch scorer]
+    S --> BS
+    BS --> SC[(gold/scores<br/>+ features snapshot)]
+  end
+  subgraph Online
+    API[FastAPI]
+    WEB[React console]
+    ST[Streamlit console]
+  end
+  REG --> API
+  S --> API
+  SC --> API
+  API -->|/api, /members| WEB
+  SC --> ST
+  SC --> MON[monitor: DQ · PSI · delayed labels]
+  MON -.retrain.-> T
 ```
 
-`requirements*.txt` are generated from `uv.lock` (`make requirements`); don't edit by hand.
-System tools, not pip packages: `brew install sevenzip` (ingest), `brew install rclone`
-(cold storage), Docker Desktop (container), Node.js 20.19+ (web console only). Kaggle API token in `~/.kaggle/access_token`.
+---
 
-## Quickstart
+## 🔗 Data and how it connects
 
-```bash
-brew install sevenzip            # streams .7z archives without extracting to disk
-uv sync                          # create .venv from uv.lock
-make test
+Five raw files from the [WSDM KKBox churn competition](https://www.kaggle.com/c/kkbox-churn-prediction-challenge),
+all keyed by an opaque member string `msno`:
 
-# Kaggle: save your API token to ~/.kaggle/access_token (chmod 600) and accept the rules first
-make download                    # data/raw/*.7z
-make ingest                      # raw -> bronze Parquet + DQ report
-make ingest MONTHS=2016-10:2017-03   # or a smaller window on a constrained machine
-make silver                      # bronze -> silver (cleaned, member_id keyed)
-make spine                       # label spine + validation vs official labels
-make features                    # 52 point-in-time features per spine row
-make feature-report              # univariate AUCs + leak smell test
-make telco                       # sanity-check modelling code on IBM Telco
-make baselines                   # prior / rule / logreg + permutation control
-make train                       # tune LightGBM on rolling folds inside train months
-make select                      # all candidates x all out-of-time months, gate, register
-make registry                    # registered versions + aliases (champion/challenger)
-make mlflow-ui                   # browse runs at http://127.0.0.1:5000
-make backtest                    # EV vs risk vs random targeting on Feb, save-rate sensitivity
-make score                       # batch-score everyone due next month with the champion
-make serve                        # scoring API on :8000 (docs at /docs)
-make docker-build docker-run     # same API in a container
-make monitor                     # latest scored month: DQ, drift, matured performance, decision
-make monitor-replay              # would monitoring have flagged past months?
-make console                     # retention console on http://localhost:8501
-make web-install && make web     # React web console on http://localhost:5173 (with make serve)
-make check                       # exactly what CI runs
-make pipeline                    # raw archives -> monitored scores, end to end
-make help                        # every target
+| Raw file(s) | Grain | Key columns | Rows (bronze) | Used for |
+|---|---|---|---|---|
+| `members_v3.csv` | one row per member | `city`, `bd` (age), `gender`, `registered_via`, `registration_init_time` | 6,769,473 | member features, tenure |
+| `transactions.csv` + `_v2` | one row per payment or cancellation | `payment_method_id`, `payment_plan_days`, `plan_list_price`, `actual_amount_paid`, `is_auto_renew`, `transaction_date`, `membership_expire_date`, `is_cancel` | 22,978,755 | **labels**, population, billing features |
+| `user_logs.csv` + `_v2` | one row per member per listening day | `num_25/50/75/985/100` (plays by completion), `num_unq`, `total_secs` | 155,544,791 (Jul 2016–Mar 2017 window) | engagement features |
+| `train.csv` + `train_v2.csv` | one row per member per label month | `is_churn` | 1,963,891 | validating our labels; the official **test** labels |
+| `sample_submission_v2.csv` | April 2017 members | `msno` | 907,471 | checking the serving population |
+
+**How the tables join.** `msno` (44-character base64) is mapped once to an append-only
+`int32 member_id` in silver, which shrank `user_logs` from 6.4 GB to 1.4 GB and makes every join
+an integer join. Everything downstream is keyed by **(member_id, as_of_date)**: the decision
+date is the first day of the month the plan expires, and *every* source is filtered to events
+strictly before it.
+
+```mermaid
+erDiagram
+  MEMBER_IDS ||--|| MEMBERS : "member_id"
+  MEMBER_IDS ||--o{ TRANSACTIONS : "member_id"
+  MEMBER_IDS ||--o{ USER_LOGS : "member_id"
+  MEMBER_IDS ||--o{ OFFICIAL_LABELS : "member_id"
+  TRANSACTIONS ||--o{ SPINE : "population and label"
+  SPINE ||--|| FEATURES : "member_id, as_of_date"
+  TRANSACTIONS ||--o{ FEATURES : "billing, before as_of_date"
+  USER_LOGS ||--o{ FEATURES : "engagement, 90 days before as_of_date"
+  MEMBERS ||--o{ FEATURES : "member attributes"
+  FEATURES ||--o{ SCORES : "model inputs"
+  SCORES }o--|| REGISTRY : "model version"
+  MEMBER_IDS {
+    string msno
+    int member_id
+  }
+  SPINE {
+    int member_id
+    date as_of_date
+    date last_expire
+    bool is_churn
+    string label_status
+  }
+  SCORES {
+    int ev_rank
+    float p_churn
+    float clv
+    float ev
+    bool contact
+    string reason_1_2_3
+  }
 ```
 
-Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
-reconciling rows read vs. written. DQ reports land in `reports/dq/<table>.json`.
+**Storage layers** (`data/`, never committed):
 
-Silver layout: `data/silver/<table>/` keyed by an int32 `member_id` (append-only map in
-`silver/member_ids`), with per-rule hit counts and bronze row reconciliation in each
-`_manifest.json`. On the 2016-07..2017-03 window:
+| Layer | Path | What is in it |
+|---|---|---|
+| raw | `data/raw/*.7z` | archives as downloaded, read-only; archived to Google Drive and hash-verified |
+| bronze | `data/bronze/<table>/month=YYYY-MM/<source>.parquet` | typed 1:1 copy, zstd, month-partitioned, `_manifest.json` reconciling rows read vs written |
+| silver | `data/silver/<table>/` | cleaned, deduplicated, `member_id`-keyed, member-sorted logs |
+| gold | `data/gold/{spine,features,scores}/` | label spine, 52 features per (member, month), monthly scores + feature snapshot |
+| reports | `reports/{dq,labels,features,baselines,selection,decisioning,monitoring}/` | JSON/Markdown evidence for every number in this README |
 
-| Table | Bronze rows | Silver rows | Bronze size | Silver size | Notes |
+---
+
+## 🧱 The build, phase by phase
+
+<p>
+<img alt="P0" src="https://img.shields.io/badge/P0-architecture-5E6372?style=for-the-badge">
+<img alt="P1" src="https://img.shields.io/badge/P1-ingest-3DD9E3?style=for-the-badge">
+<img alt="P2" src="https://img.shields.io/badge/P2-clean-3DD9E3?style=for-the-badge">
+<img alt="P3" src="https://img.shields.io/badge/P3-labels-9B8CFF?style=for-the-badge">
+<img alt="P4" src="https://img.shields.io/badge/P4-features-9B8CFF?style=for-the-badge">
+<img alt="P5" src="https://img.shields.io/badge/P5-baselines-9B8CFF?style=for-the-badge">
+<img alt="P6" src="https://img.shields.io/badge/P6-model%20selection-9B8CFF?style=for-the-badge">
+<img alt="P7" src="https://img.shields.io/badge/P7-decisioning-F5B53D?style=for-the-badge">
+<img alt="P8" src="https://img.shields.io/badge/P8-serving-F5B53D?style=for-the-badge">
+<img alt="P9" src="https://img.shields.io/badge/P9-monitoring-F5B53D?style=for-the-badge">
+<img alt="P10" src="https://img.shields.io/badge/P10-consoles%20%2B%20CI-FF4B4B?style=for-the-badge">
+</p>
+
+### ![P1](https://img.shields.io/badge/P1-ingest-3DD9E3?style=flat-square) Raw → bronze
+
+`7zz x -so` streams each archive straight into a pyarrow CSV reader, which writes typed,
+zstd-compressed Parquet partitioned by month. **No CSV ever touches the disk** (user_logs is
+~30 GB uncompressed; the laptop had 18 GB free). Pandera schemas validate a sample per file and
+a DQ report gates the step (`reports/dq/<table>.json`: volume, nulls, ranges, duplicates).
+Raw and bronze are then archived with rclone to Google Drive (`make archive LAYER=raw`),
+verified by size and hash before anything local is freed.
+
+### ![P2](https://img.shields.io/badge/P2-clean-3DD9E3?style=flat-square) Bronze → silver
+
+| Table | Bronze rows | Silver rows | Bronze size | Silver size | Cleaning |
 |---|---|---|---|---|---|
 | user_logs | 155,544,791 | 155,544,791 | 6.4 GB | 1.4 GB | 37,244 `total_secs` clipped to [0, 86400] |
-| transactions | 22,978,755 | 22,975,416 | 775 MB | 60 MB | 3,339 exact dups dropped; 1,776 1970 expiries nulled |
-| members | 6,769,473 | 6,769,473 | 225 MB | 36 MB | 4.55M ages outside 10-80 nulled |
+| transactions | 22,978,755 | 22,975,416 | 775 MB | 60 MB | 3,339 exact dups dropped; 1,776 year-1970 expiries nulled |
+| members | 6,769,473 | 6,769,473 | 225 MB | 36 MB | 4.55M ages outside 10–80 nulled |
 | labels | 1,963,891 | 1,963,891 | 62 MB | 5.7 MB | |
 
-Full silver build: 46 s.
+Full silver build: **46 s** with DuckDB at a 6 GB memory cap.
 
-## Cold storage
+### ![P3](https://img.shields.io/badge/P3-labels-9B8CFF?style=flat-square) Point-in-time label spine
 
-Raw archives and bronze are cold data: read rarely, large. They live on an rclone remote
-(Google Drive by default, `storage.remote` in `configs/base.yaml`); silver/gold stay local.
+KKBox's definition: a member whose plan **expires in month M** churns if there is **no new
+valid subscription within 30 days**. Rather than use only the 2M official labels, the official
+`WSDMChurnLabeller.scala` is ported to SQL and applied to every month, giving ~5.9M labelled
+member-months, with two measured improvements:
 
-```bash
-make archive LAYER=raw              # upload, verify size+hash with rclone check, free local disk
-make restore LAYER=bronze/user_logs # pull back on demand
-make storage-status                 # what is local vs archived
-```
+- **Population:** any transaction before M that expires in M (the Scala file looks only at M-1's
+  last transaction). Recall vs the official files: 86% → **99%**.
+- **Label maturity:** a row is `decided` only if expiry + 30 days lies inside the data, else
+  `pending`. Unseen renewals are never counted as churn.
 
-One-time setup: `rclone config` a Drive remote named `gdrive` with **your own OAuth client ID**
-and scope `drive.file` (files are only visible to the client ID that uploaded them, so never
-upload with rclone's shared client). The OAuth app stays in Google "Testing" mode, so tokens
-expire every 7 days: `rclone config reconnect gdrive:`.
-
-## Label spine
-
-`data/gold/spine/label_month=YYYY-MM/` holds one row per (member, month M) with
-`as_of_date` = first day of M: the decision point. Population and paid-through date use only
-transactions before it; features must too. Port of KKBox's official `WSDMChurnLabeller.scala`
-(`make reference`), with two deliberate, measured changes:
-
-- **Population:** any transaction before M expiring in M, over all history (the Scala file
-  uses only M-1's last transaction). Recall vs official files: 86% -> **99%**.
-- **Label maturity:** rows are `decided` or `pending` (is_churn NULL) based on whether
-  effective expiry + 30 days is inside the data, instead of counting unseen renewals as churn.
-
-| Month | Members | Pending | Churn (decided) | Official pop. recall / precision | Label agreement |
+| Month | Members | Pending | Churn (decided) | Official population recall / precision | Label agreement |
 |---|---|---|---|---|---|
 | 2016-10 | 944,849 | 1,224 | 4.52% | | |
 | 2016-11 | 1,000,052 | 1,489 | 9.44% | | |
@@ -141,312 +224,367 @@ transactions before it; features must too. Port of KKBox's official `WSDMChurnLa
 | 2017-02 | 984,196 | 4,395 | 4.71% | 99.1% / 99.9% (train.csv) | 98.0% |
 | 2017-03 | 991,602 | 49,676 | (immature) | 98.7% / 96.6% (train_v2) | 96.0% |
 
-Known gap: ~1/3 of disagreements are "renewed then cancelled, never renewed again", which the
-official labels count as churn and the Scala logic does not. March needs April
-transactions to mature, so the March holdout uses the official train_v2 labels.
+About a third of the disagreements are "renewed then cancelled, never renewed again", which the
+official labels count as churn and the Scala logic does not. March needs April data to mature,
+so the March holdout is scored against the **official** train_v2 labels.
 
-## Features
+### ![P4](https://img.shields.io/badge/P4-features-9B8CFF?style=flat-square) 52 leak-proof features
 
-`data/gold/features/label_month=YYYY-MM/` = spine keys + label + 52 features, all computed
-from events strictly before `as_of_date`. `src/churnguard/features/registry.yaml` is the
-contract (family, source, window, dtype, description); the builder refuses unregistered or
-missing columns. Families: **member** (7), **billing** (24), **engagement** (21; windows
-capped at 90 days by log coverage). ~1M rows/month in ~4.5 s.
+`src/churnguard/features/registry.yaml` is the contract (family, source, window, dtype,
+description); the builder refuses unregistered or missing columns. Families: **member** (7),
+**billing** (24), **engagement** (21, windows capped at 90 days by log coverage). About 1M
+rows per month in ~4.5 s.
 
-Leakage defences, each with a test that fails if the guard is removed (verified by
-mutating the code):
+<details>
+<summary><b>How leakage is ruled out (4 defences, each mutation-tested)</b></summary>
 
-- **Poisoned future:** extreme events on/after `as_of_date` in every source; features must
-  be byte-identical.
-- **Mixed as-of dates:** one member at two as-of dates in one query; the earlier row must
-  not see the later events (the case serving and backfills hit).
-- **Late registrations:** `registration_date` after `as_of_date` gives NULL tenure.
-- **Leak smell test** (`make feature-report`): fails if any single feature has AUC >= 0.95.
-  Current max: `auto_renew_share_180d` 0.775.
+| Defence | What it does | Proven by |
+|---|---|---|
+| Poisoned future | plants extreme events on/after `as_of_date` in every source (a 10M-second listening day, a 9,999 NTD cancellation); features must be byte-identical | deleting a date guard makes it fail |
+| Mixed as-of dates | scores one member at two dates in one query; the earlier row must not see the later events (the case serving and backfills hit) | caught the 2 guard deletions the poison test missed; forced keying by (member_id, as_of_date) |
+| Late registrations | `registration_date` after `as_of_date` gives NULL tenure | test |
+| Leak smell test | `make feature-report` fails if any single feature has AUC ≥ 0.95 | current max `auto_renew_share_180d` 0.775 |
+| Permutation control | logreg on 5 shuffled-label copies must average ≈ 0.5 and lose to the real model | 0.483 ± 0.025 SE vs 0.893 |
 
-## Baselines
+</details>
 
-Time-ordered splits (`modeling` in `configs/base.yaml`): **train** 2016-10..2017-01 (1M-row
-sample of 3.9M decided rows), **valid** 2017-02 (979,801 rows, derived labels), **test**
-2017-03 (958,189 rows, **official train_v2 labels**).
+### ![P5](https://img.shields.io/badge/P5-baselines-9B8CFF?style=flat-square) ![P6](https://img.shields.io/badge/P6-model%20selection-9B8CFF?style=flat-square) Models
 
-| valid (Feb 2017) | ROC AUC | PR AUC | log loss | ECE | precision@10% | lift@10% |
-|---|---|---|---|---|---|---|
-| prior | 0.500 | 0.047 | 0.1945 | 0.023 | 0.047 | 1.0 |
-| rule: auto-renew x cancel | 0.849 | 0.370 | 0.1275 | 0.015 | 0.308 | 6.5 |
-| logistic regression | **0.893** | **0.610** | **0.1094** | **0.006** | 0.356 | **7.6** |
+See [Models and metrics](#-models-and-metrics) below: five learners, three baselines, a
+sanity dataset and a promotion gate.
 
-| test (Mar 2017, official labels) | ROC AUC | PR AUC | log loss | ECE |
-|---|---|---|---|---|
-| rule | 0.786 | 0.335 | 0.2299 | 0.025 |
-| logistic regression | 0.798 | 0.486 | 0.2409 | 0.038 |
+### ![P7](https://img.shields.io/badge/P7-decisioning-F5B53D?style=flat-square) Expected-value retention
 
-**Valid -> test drop (0.893 -> 0.798) has two parts.** Scoring the same February members
-against official `train.csv` labels instead of derived ones gives 0.856: ~0.036 of the drop
-is the label definition (official labels also count renew-then-cancel as churn: 5.9% vs
-4.7% base rate), the remaining ~0.058 is March itself. Test log loss is worse than the rule
-because the model is calibrated to the derived 7% training rate, not the official 8.8%.
+Contacting member *i* is worth
 
-Sanity checks: **IBM Telco** logreg AUC 0.852 (expected 0.82-0.88) validates the shared
-modelling code; the **permutation control** (logreg on 5 label permutations) gives valid
-AUCs 0.41-0.56 around 0.5 (mean 0.483 +/- 0.025 SE) while the real model scores 0.893.
-A single permuted model is *not* a valid check here: random coefficients over strongly
-predictive features project onto the signal by chance (0.42-0.59 across seeds).
+```
+EV = p(churn) × save_rate × CLV − cost
+CLV  = plan-normalised monthly revenue over 12 months, discounted by 6% baseline monthly churn (9.3 expected months)
+cost = 2 NTD contact + one free month
+```
 
-## Model selection
-
-**Champion: logistic regression** (`models:/churnguard@champion`, v1). Five candidates
-were compared on every out-of-time month we have: each month scored by a model trained
-only on earlier months (expanding window), Feb 2017 included. March stays the untouched
-test month.
-
-| ROC AUC by scored month | Nov 16 | **Dec 16** | Jan 17 | Feb 17 | mean | worst |
-|---|---|---|---|---|---|---|
-| logreg | 0.959 | **0.832** | 0.899 | 0.893 | 0.896 | **0.832** |
-| lgbm (Optuna, 25 trials) | 0.964 | 0.781 | 0.908 | 0.915 | 0.892 | 0.781 |
-| lgbm_robust (regularised + monotone) | 0.964 | 0.782 | 0.906 | 0.914 | 0.891 | 0.782 |
-| blend lgbm + logreg | 0.963 | 0.806 | 0.904 | 0.908 | 0.896 | 0.806 |
-| blend robust + logreg | 0.963 | 0.807 | 0.903 | 0.907 | 0.895 | 0.807 |
-
-| PR AUC by scored month | Nov 16 | Dec 16 | Jan 17 | Feb 17 | mean | mean log loss |
-|---|---|---|---|---|---|---|
-| logreg | 0.867 | 0.658 | 0.650 | 0.610 | 0.696 | 0.1321 |
-| lgbm | 0.872 | 0.657 | 0.654 | 0.638 | 0.705 | 0.1325 |
-| blend lgbm + logreg | **0.874** | **0.660** | **0.663** | 0.632 | **0.707** | **0.1300** |
-
-**Why logreg, when the blend wins PR AUC in every month?** The promotion gate (v2,
-`tracking.promotion_decision`) requires mean PR AUC >= baseline + 0.005, mean log loss <=
-baseline, **worst-month ROC AUC within 0.01 of the baseline's**, latest-month ECE <= 0.01,
-a passed permutation control and beating the current champion. Every tree-based candidate
-fails the worst-month rule on December 2016 (blends 0.806-0.807 vs logreg 0.832); the
-single-model LightGBMs also lose on mean log loss. This is a deliberate robustness-first
-choice: a model that ranks well in steady months but degrades sharply in a shift month is
-the riskier one to put in front of a retention budget. With more months of history the
-blend is the first candidate to re-test; the tolerance is a business decision.
-
-What the comparison ruled out:
-
-- **Monotone constraints + heavier regularisation did not fix December** (0.782 vs 0.781),
-  so December is not a "wrong direction" overfit; it is a shift the trees cannot extrapolate.
-- **Single-month gating is unsafe.** The first LightGBM (`churnguard-gbm` v1) won Feb by
-  0.022 AUC and was auto-promoted by a Feb-only gate; it is now demoted to challenger.
-- **Calibration was not applied.** Isotonic fitted on Nov-Jan out-of-time scores and tested
-  on Feb *worsened* both log loss (0.1094 -> 0.1099) and ECE (0.0063 -> 0.0073), so the
-  conditional check left logreg's own probabilities in place.
-
-**March test** (official train_v2 labels; final model trained on all history through Feb,
-1.25M rows, Feb subsampled to an average month):
-
-| logreg, Mar 2017 | ROC AUC | PR AUC | log loss | ECE | lift@10% |
-|---|---|---|---|---|---|
-| all members (958,189) | 0.799 | 0.485 | 0.2427 | 0.039 | 5.7 |
-| excluding early renewers (91.2%) | **0.853** | **0.528** | 0.2006 | 0.028 | **6.3** |
-
-*Early renewers* (paid-through date already past March, 8.8% of the test month) churn at
-16.5% in the official March labels vs 2.3% in February, and no model ranks them better
-than chance (AUC 0.51-0.55): the official labeller saw April events we do not have. They
-are reported separately rather than allowed to dominate the test number.
-
-LightGBM's exact TreeSHAP (`pred_contrib`) gives per-member reason codes for tree models
-(`ChurnModel.reason_codes`); top global drivers in the tuned LightGBM were
-`last_payment_method`, `last_is_auto_renew`, `days_since_last_txn`, `days_to_expiry` and
-`last_list_price`. Logistic-regression reason codes are added with serving (Phase 8).
-
-## Retention decisioning
-
-Contacting member *i* is worth **EV = p(churn) x save rate x CLV - cost**, where CLV is
-plan-normalised monthly revenue over a 12-month horizon (discounted by 6% baseline monthly
-churn, 9.3 expected months) and cost = 2 NTD contact + one free month. Members with EV <= 0
-are never contacted; with a budget, selection is greedy by EV/cost
+Members with EV ≤ 0 are never contacted; under a budget, selection is greedy by EV / cost
 (`decisioning/retention.py`, parameters in `configs/base.yaml: retention`).
 
-**Backtest** (`make backtest`): champion model scores Feb 2017 (979,801 members, 4.7%
-churn); realised value uses the members' actual outcomes, assuming a 20% save rate.
+**Backtest** (`make backtest`): the champion scores Feb 2017 (979,801 members, 4.7% churn) and
+value is realised against what members actually did, at a 20% save rate.
 
 | contact top x% | by expected value | by churn risk | random |
 |---|---|---|---|
-| 1% | **+801k NTD** | +647k | -1.2M |
-| 2% | **+969k** | +963k | -2.4M |
-| 5% | -466k | -638k | -5.9M |
-| 10% | -5.2M | -6.0M | -11.8M |
-| 30% | -24.6M | -31.0M | -35.3M |
+| 1% | **+801k NTD** | +647k | −1.2M |
+| 2% | **+969k** | +963k | −2.4M |
+| 5% | −466k | −638k | −5.9M |
+| 10% | −5.2M | −6.0M | −11.8M |
+| 30% | −24.6M | −31.0M | −35.3M |
 
-- **The EV rule sizes the campaign by itself.** Contacting only positive-EV members selects
-  1.4% (13,865) and realises **+976k NTD**, slightly more than the best fixed cut-off found
-  in hindsight (2%, +969k). That only works because the probabilities are calibrated
-  (ECE 0.006): a miscalibrated model would pick the wrong number of members.
-- **Ranking by value beats ranking by risk** where it matters: +24% at 1%, and it loses
-  less past the optimum (-5.2M vs -6.0M at 10%). Risk ranking alone spends offers on
-  members who pay little or nothing.
-- **A free month is an expensive offer.** Beyond ~2% of members the incentive cost
-  exceeds the churn saved; contacting everyone would lose 117M NTD.
+- **The EV rule sizes the campaign by itself:** contacting only positive-EV members picks 1.4%
+  (13,865) and realises **+976k NTD**, more than the best fixed cut-off found in hindsight (2%,
+  +969k). That only works because probabilities are calibrated (ECE 0.006).
+- **Value beats risk:** +24% at 1%, and it loses less past the optimum. Risk ranking alone spends
+  offers on members who pay little or nothing.
+- **A free month is expensive:** contacting everyone would lose 117M NTD.
 
-**Save-rate sensitivity: the assumption decides whether to run a campaign at all.**
-
-| assumed save rate | break-even churn risk (149 NTD/month) | members contacted | realised net value |
+| assumed save rate | break-even churn risk (149 NTD plan) | contacted | realised net value |
 |---|---|---|---|
 | 10% | 1.16 (impossible) | 0 | 0: no campaign |
 | 20% | 0.58 | 13,865 (1.4%) | +976k NTD |
 | 30% | 0.39 | 24,704 (2.5%) | +2.84M NTD |
 
-KKBox contains no campaign data, so the save rate is an assumption, not an estimate. The
-first real campaign must keep a **randomised holdout** of positive-EV members (not
-contacted) to measure it; until then the money figures are scenarios, while the
-*ranking* holds: EV >= risk > random at every save rate (10/20/30%) and contact
-fraction (1-30%) tested, 18 of 18 cases.
+KKBox has no campaign data, so the save rate is an **assumption**. The ranking holds in 18 of 18
+cases (EV ≥ risk > random at every save rate and contact fraction); the money figures do not.
+The first real campaign must keep a randomised holdout to measure it.
 
-## Serving
+### ![P8](https://img.shields.io/badge/P8-serving-F5B53D?style=flat-square) Batch + API
 
-One scoring path, two entry points (`serving/scoring.py`): population ->
-`feature_sql` (the training feature code) -> `prepare_features` (the training dtypes) ->
-champion model (`models:/churnguard@champion`) -> expected value + contact decision ->
-top-3 reason codes. Population and paid-through date come from the same functions the
-label spine uses (`due_population_sql`, `paid_through_sql`); the refactor reproduced the
-existing spine with 0 differing rows over 2.97M.
+One scoring path, two entry points (`serving/scoring.py`): population → `feature_sql` (the
+training feature code) → `prepare_features` (the training dtypes) → champion model → expected
+value + contact decision → top-3 reason codes.
 
-**Batch** (`make score`): everyone due next month. April 2017, real data:
-
-| | |
+| April 2017 batch (`make score`) | |
 |---|---|
-| members scored | 1,012,577 in 19 s (2.9 GB peak) |
+| members scored | **1,012,577 in 19 s** (2.9 GB peak) |
 | vs Kaggle's April test population | 100% recall, 89.6% precision |
-| contact (positive EV) | 13,893 (1.4%), lowest contacted p = 0.579 = the 0.58 break-even |
+| contact (positive EV) | 13,893 (1.4%); lowest contacted p = 0.579, the 0.58 break-even |
 | expected net value (20% save rate) | +720k NTD |
 | top reason among contacted | `last_is_cancel` (84%), `last_is_auto_renew` (16%) |
 
-Output `data/gold/scores/score_month=YYYY-MM/data.parquet`: `ev_rank`, `msno` (for the
-CRM), `p_churn`, `monthly_revenue`, `clv`, `ev`, `contact`, `reason_1..3` (+ log-odds
-contribution), model name/version/type, `scored_at`, plus a `_manifest.json`.
+<details>
+<summary><b>API endpoints</b> (<code>make serve</code>, OpenAPI at <code>/docs</code>)</summary>
 
-**API** (`make serve`, OpenAPI at `/docs`):
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | live model name, version, type, run id, alias |
+| `GET /members/{id}/score?as_of=` | builds that member's features from silver as of the date and scores them (~90 ms) |
+| `POST /score` | caller-supplied features; schema generated from the registry, so a missing or mistyped feature is a 422 |
+| `GET /api/months`, `/api/overview` | scored months; KPIs, tiers, reason mix, score histogram |
+| `GET /api/members`, `/api/members/{id}` | paginated, filtered, sorted scores; one member with the 52 inputs it was scored on |
+| `GET /api/retention/plan?budget=`, `/api/export/contacts.csv` | re-run EV selection under a budget; CRM CSV of that list |
+| `GET /api/history`, `/api/registry`, `/api/policy` | served + replayed months; MLflow versions and aliases; retention economics |
+| `GET /api/reports/{selection,baselines,backtest,replay}`, `/api/monitoring/{month}` | the pipeline's reports, verbatim |
 
-- `GET /health`: live model name, version, type, run id
-- `GET /members/{member_id}/score?as_of=2017-04-01`: builds that member's features from
-  silver as of the date and scores them (~90 ms, thanks to member-sorted silver logs)
-- `POST /score`: caller-supplied features; the request schema is generated from the
-  feature registry, so a missing or mistyped feature is a 422
-- `GET /api/...`: read-only data for the web console (`serving/console_api.py`): months,
-  overview, paginated/filtered members, member detail with its feature snapshot, history,
-  registry, retention plan under a budget, contact-list CSV export, and the selection,
-  baseline, backtest and monitoring reports. Nothing is recomputed; a missing artifact is a
-  404 naming the make target that creates it
+The `/api` routes are read-only: nothing is recomputed, and a missing artifact is a 404 naming
+the `make` target that creates it.
 
-**Parity is tested, not assumed:** `tests/test_serving.py` scores members through the API
-one by one and requires p_churn, EV, contact and reasons to equal the batch rows exactly
-(including an early renewer). On real data the API returned p = 0.99458 / EV 130.743 for
-April's top-ranked member, identical to the batch file.
+</details>
 
-Reason codes: TreeSHAP for LightGBM; for logistic regression, coefficient x standardised
-value summed back to each input feature (one-hot levels and missing indicators included),
-which adds up exactly to the model's logit (tested).
+**Parity is tested, not assumed:** `tests/test_serving.py` scores members through the API one
+by one and requires p, EV, contact and reasons to equal the batch rows exactly. The batch also
+saves `features.parquet`; re-scoring it reproduces all 1,012,577 April probabilities bit for bit.
+Docker runs the API as a non-root user with a healthcheck and a read-only artifact mount.
 
-**Docker:** `Dockerfile` runs the API as a non-root user with a healthcheck; data, the
-registry DB and artifacts are mounted. MLflow stores artifact locations as absolute host
-paths (`file:///.../mlartifacts`), so `make docker-run` mounts them at the same path.
+### ![P9](https://img.shields.io/badge/P9-monitoring-F5B53D?style=flat-square) Monitoring
 
-## Monitoring
+`make monitor` returns **ok / warn / retrain** (exit code 3 on retrain, for a scheduler):
 
-`make monitor` checks a scored month against the champion's training months (Oct 2016 -
-Feb 2017) and returns **ok / warn / retrain** (exit code 3 on retrain, for a scheduler):
-
-| check | how | retrain if | warn if |
+| Check | How | Retrain if | Warn if |
 |---|---|---|---|
-| data quality | volume vs reference average, null-rate jumps, p in [0, 1] | p out of range | volume outside 0.5-2x, null jump > 0.10 |
-| feature drift | PSI on the model's own view of the 52 inputs (reference-quantile bins, missing as its own bin) | >= 3 features PSI > 0.25 | any feature PSI > 0.25 |
-| score drift | PSI of served probabilities vs champion scores on the reference | PSI > 0.25 | PSI > 0.10 |
-| performance | served scores joined to labels as they mature (spine SQL on current data) | complete month AUC >= 0.03 below the champion's out-of-time AUC, or ECE > 0.02 | |
+| data quality | volume vs reference, null-rate jumps, p in [0, 1] | p out of range | volume outside 0.5–2×, null jump > 0.10 |
+| feature drift | PSI on the model's own view of the 52 inputs | ≥ 3 features PSI > 0.25 | any feature PSI > 0.25 |
+| score drift | PSI of served probabilities vs the reference | PSI > 0.25 | PSI > 0.10 |
+| performance | scores joined to labels as they mature | complete month AUC ≥ 0.03 below expected, or ECE > 0.02 | |
 
-Labels mature ~30 days after expiry, so each month is `pending`, `partial` (< 95% decided)
-or `complete`. Partial and in-sample months are reported, never acted on: the first outcomes
-to resolve are renewals, so early AUCs are optimistic (March, 94.99% decided, shows 0.978).
-The batch scorer saves `features.parquet` next to the scores; re-scoring it reproduces all
-1,012,577 April probabilities bit for bit, so it doubles as an audit trail.
+<details>
+<summary><b>The replay: would monitoring have caught December 2016?</b> (no, and that is the finding)</summary>
 
-**April 2017:** score PSI 0.008, volume 1.03x, 49/52 features stable -> **ok** (with
-`days_since_first_txn` reported but not alerting, see below).
-
-**Replay: would it have caught December 2016?** No, and that is the finding.
-
-| month | vs | score PSI | features PSI > 0.25 | 0.10-0.25 | decision |
+| Month | vs | score PSI | features PSI > 0.25 | 0.10–0.25 | decision |
 |---|---|---|---|---|---|
-| Dec 16 | Oct-Nov | 0.003 | 0 | 2 | ok |
-| Jan 17 | Nov-Dec | 0.011 | 0 | 2 | ok |
-| Feb 17 | Dec-Jan | 0.007 | 0 | 1 | ok |
-| Mar 17 | Jan-Feb | 0.015 | 0 | 3 | ok |
-| Apr 17 | Feb-Mar | 0.006 | 0 | 1 | ok |
+| Dec 16 | Oct–Nov | 0.003 | 0 | 2 | ok |
+| Jan 17 | Nov–Dec | 0.011 | 0 | 2 | ok |
+| Feb 17 | Dec–Jan | 0.007 | 0 | 1 | ok |
+| Mar 17 | Jan–Feb | 0.015 | 0 | 3 | ok |
+| Apr 17 | Feb–Mar | 0.006 | 0 | 1 | ok |
 
 December's inputs looked like every other month; what changed was the relationship between
-features and churn (concept drift), which PSI cannot see. Only the delayed-label rule
-catches it: December's out-of-time AUC was 0.832 vs the 0.896 expected, a 0.064 drop that
-triggers **retrain** about 30 days after the month closes (encoded in `tests/test_monitor.py`).
-Input monitoring is still worth running: it catches broken pipelines and population shifts
-immediately, but it is not a substitute for waiting for labels.
+features and churn (**concept drift**), which PSI cannot see. Only the delayed-label rule
+catches it: December's out-of-time AUC was 0.832 vs 0.896 expected, a 0.064 drop that triggers
+**retrain** about 30 days after the month closes (encoded in `tests/test_monitor.py`).
 
-Two bugs the monitor surfaced, both fixed:
+Two bugs the monitor surfaced, both fixed: the clock feature `days_since_first_txn` drifted
+every month (now `expected_drift` in the registry: reported, never alerting), and category codes
+depended on which library wrote the Parquet (`"13.0"` vs `"13"`, fake PSI ~15; now canonicalised).
 
-- **Clock feature, alert fatigue.** KKBox transactions start 2015-01-01, so
-  `days_since_first_txn` is capped by the dataset start and drifts every month (PSI 0.6-0.8):
-  every month was `warn`. It is now marked `expected_drift` in the registry (still reported,
-  never alerting). A future model should cap it or use registration tenure instead.
-- **Category codes depended on who wrote the parquet.** DuckDB-written int-with-nulls
-  columns read back as float64 (`"13.0"`), pandas-written ones as Int32 (`"13"`), which made
-  city/registered_via PSI ~15 and would have mis-encoded categories in performance replays.
-  `prepare_features` now canonicalises codes; served April scores are unchanged (max diff 0).
+</details>
 
-## Retention console
+### ![P10](https://img.shields.io/badge/P10-consoles%20%2B%20CI-FF4B4B?style=flat-square) Consoles
 
-`make console` (Streamlit, http://localhost:8501), reading the batch scores and monitoring
-reports:
-
-- **Campaign:** members due, contacts, expected net value, mean risk; the contact list with
-  top reasons and a CSV export for the CRM
-- **Budget:** re-run the EV selection under a budget; cumulative-value curve showing where
-  the next offer costs more than it saves
-- **Monitoring:** ok / warn / retrain banner, score PSI, volume, feature drift, label maturity
-- **Member lookup:** by msno or member id
-
-The data layer (`console/data.py`) is unit-tested and the app itself is rendered headless
-in CI (`streamlit.testing.v1.AppTest`); against the real April scores it renders in under a
-second.
-
-## Web console
-
-A React + TypeScript app in `web/` (Vite, React Router, TanStack Query; charts are
-hand-written SVG, no chart library). It reads everything through the API above, so it shows
+**React web console** (`web/`, Vite + React 19 + TypeScript + TanStack Query, hand-written SVG
+charts, dark violet/cyan design system). It reads everything through the API, so it shows
 exactly what the pipeline produced and never invents a number.
 
+| Page | Shows | You can |
+|---|---|---|
+| Overview | members scored, predicted churn, revenue at risk, contact list, model AUC; tiers, revenue exposure, trend, backtest, top reasons, health | drill into a risk tier |
+| Customers | all 1M scored members, server-side paginated | search (ID prefix or msno), filter tier / contact list, sort, export CSV (with confirmation) |
+| Customer detail | probability gauge, EV breakdown, recommended play, reason codes, all 52 inputs | re-score live through the API (parity check), copy msno |
+| Predictions | batch summary, score histogram, registry versions, scoring history | score any member at any date |
+| Retention | campaign planner, save-rate sensitivity, EV vs risk vs random | budget what-if, export that list |
+| Model performance | per-month metrics for every candidate, gate verdicts, holdout, calibration, baselines, confusion matrix at top 10% | toggle metrics, candidates, test population |
+| Monitoring | ok/warn/retrain, data quality, score + feature drift, label maturity, replay | switch report month, hide expected drift |
+
+What the API cannot provide is shown as unavailable, not filled in: request latency and error
+rates (no metrics endpoint) and uplift (no treatment/control data).
+
+**Streamlit console** (`make console`): campaign list + CSV, budget re-selection, monitoring and
+member lookup, for analysts; rendered headless in CI.
+
+---
+
+## 📊 Models and metrics
+
+**Splits are by time, never random.** Every row carries its `label_month`; train is Oct 2016–Jan
+2017 (1M-row sample of 3.9M decided rows), validation Feb 2017 (979,801), test Mar 2017
+(958,189, **official** labels). Hyperparameter tuning uses expanding folds *inside* the training
+months (Oct→Nov, Oct–Nov→Dec, Oct–Dec→Jan), and a test asserts no fold trains on the future.
+
+### Every model that was tried
+
+| Model | Role | Valid AUC (Feb) | Mean OOT AUC | Worst-month AUC | Mean PR AUC | Mean log loss | Outcome |
+|---|---|---|---|---|---|---|---|
+| Prior (everyone 7%) | log-loss floor | 0.500 | | | | 0.1945 (Feb) | baseline |
+| Rule: auto-renew × cancel | the analyst's afternoon | 0.849 | | | | 0.1275 (Feb) | baseline |
+| **Logistic regression** | interpretable linear | **0.893** | **0.896** | **0.832** | 0.696 | 0.1321 | 🏆 **champion** |
+| LightGBM (Optuna, 25 trials) | main challenger | 0.915 | 0.892 | 0.781 | 0.705 | 0.1325 | ❌ worst month, log loss |
+| LightGBM robust (regularised + monotone) | "fix the overfit" attempt | 0.914 | 0.891 | 0.782 | 0.706 | 0.1333 | ❌ worst month, log loss |
+| Blend LightGBM + logreg | best of both | 0.908 | 0.896 | 0.806 | **0.707** | **0.1300** | ❌ worst month |
+| Blend robust + logreg | | 0.907 | 0.895 | 0.807 | 0.707 | 0.1304 | ❌ worst month |
+| Logistic regression on IBM Telco | code sanity check | 0.852 (expected 0.82–0.88) | | | | | ✅ code validated |
+| Logreg on 5 shuffled labels | leakage control | 0.41–0.56, mean 0.483 | | | | | ✅ no leak |
+
+<p align="center">
+  <img src="docs/assets/model-months.svg" alt="Out-of-time ROC AUC by month: every tree model falls furthest in December 2016" width="85%">
+</p>
+
+<details>
+<summary><b>Full per-month tables</b></summary>
+
+| ROC AUC by scored month | Nov 16 | **Dec 16** | Jan 17 | Feb 17 | mean | worst |
+|---|---|---|---|---|---|---|
+| logreg | 0.959 | **0.832** | 0.899 | 0.893 | 0.896 | **0.832** |
+| lgbm | 0.964 | 0.781 | 0.908 | 0.915 | 0.892 | 0.781 |
+| lgbm_robust | 0.964 | 0.782 | 0.906 | 0.914 | 0.891 | 0.782 |
+| blend lgbm + logreg | 0.963 | 0.806 | 0.904 | 0.908 | 0.896 | 0.806 |
+| blend robust + logreg | 0.963 | 0.807 | 0.903 | 0.907 | 0.895 | 0.807 |
+
+| PR AUC by scored month | Nov 16 | Dec 16 | Jan 17 | Feb 17 | mean |
+|---|---|---|---|---|---|
+| logreg | 0.867 | 0.658 | 0.650 | 0.610 | 0.696 |
+| lgbm | 0.872 | 0.657 | 0.654 | 0.638 | 0.705 |
+| blend lgbm + logreg | **0.874** | **0.660** | **0.663** | 0.632 | **0.707** |
+
+| Validation, Feb 2017 | ROC AUC | PR AUC | log loss | ECE | precision@10% | lift@10% |
+|---|---|---|---|---|---|---|
+| prior | 0.500 | 0.047 | 0.1945 | 0.023 | 0.047 | 1.0 |
+| rule | 0.849 | 0.370 | 0.1275 | 0.015 | 0.308 | 6.5 |
+| logistic regression | **0.893** | **0.610** | **0.1094** | **0.006** | 0.356 | **7.6** |
+
+</details>
+
+### Why logistic regression won
+
+Promotion **gate v2** (`tracking.promotion_decision`) requires, over *every* out-of-time month:
+mean PR AUC ≥ baseline + 0.005, mean log loss ≤ baseline, **worst-month ROC AUC within 0.01 of
+the baseline's**, latest-month ECE ≤ 0.01, a passed permutation control, and beating the current
+champion.
+
+- The blends **do** win PR AUC every month, but in December 2016 they fall to 0.806 vs 0.832.
+  A model that ranks well in steady months and degrades sharply in a shift month is the riskier
+  one to put in front of a retention budget.
+- **Regularisation and monotone constraints did not fix December** (0.782 vs 0.781), so it is
+  not an overfit but a shift the trees cannot extrapolate.
+- **Single-month gating is unsafe:** the first LightGBM won February by 0.022 AUC, was
+  auto-promoted by a Feb-only gate, lost December by 0.051, and was demoted. That is why gate v2
+  exists.
+- **Calibration was tested, not assumed:** isotonic regression made the Feb holdout *worse*
+  (ECE 0.0063 → 0.0073), so logreg's own probabilities are kept.
+- **Reason codes come free:** coefficient × standardised value, summed back per feature, adds
+  up exactly to the logit (tested), so every score is explainable to a CRM agent.
+
+### Holdout: March 2017, official labels
+
+| Logreg, Mar 2017 | ROC AUC | PR AUC | log loss | ECE | precision@10% | recall@10% | lift@10% |
+|---|---|---|---|---|---|---|---|
+| all members (958,189) | 0.799 | 0.485 | 0.2427 | 0.039 | 49.8% | 56.8% | 5.7 |
+| excluding early renewers (873,726) | **0.853** | **0.527** | 0.2006 | 0.028 | 50.9% | 63.4% | **6.3** |
+
+The validation → test drop (0.893 → 0.799) has two parts: ~0.036 is the **label definition**
+(scoring Feb against official labels gives 0.856, because they also count renew-then-cancel as
+churn), and ~0.058 is March itself. *Early renewers* (already paid past March, 8.8%) churn at
+16.5% in the official labels vs 2.3% in February and no model ranks them better than chance:
+the official labeller saw April events this dataset does not contain. They are reported
+separately rather than allowed to dominate the number.
+
+---
+
+## ⚖️ Why this, and not that
+
+| Decision | Chosen | Instead of | Why |
+|---|---|---|---|
+| Compute | **DuckDB** over Parquet | Spark, pandas | 155M-row joins out-of-core on a 16 GB laptop with a 6 GB cap; Spark is cluster overhead for one machine, pandas would not fit |
+| Ingest | **streamed `7zz -so` → pyarrow** | unzip then read CSV | 30 GB of CSV would not fit on 18 GB free disk |
+| Storage | **zstd Parquet, month-partitioned** | CSV, a database | columnar + partition pruning; 6.4 GB → 1.4 GB once `msno` became `int32` |
+| Keys | **int32 `member_id`** | 44-char `msno` strings | 4.5× smaller logs, integer joins |
+| Labels | **port of the official labeller, all months** | only the 2M official labels | 5.9M labelled rows, a real time series, and a check against the official files |
+| Split | **by month, expanding folds** | random K-fold | random splits train on the future and overstate every metric |
+| Champion | **logistic regression** | LightGBM / blends | best worst month (0.832 vs ≤ 0.807) at equal mean AUC; calibrated; exact reason codes |
+| Promotion | **gate over every month (mean + worst)** | best validation month | a Feb-only gate promoted a model that failed December |
+| Calibration | **only if it helps out of time** | always isotonic | it made the holdout worse |
+| Explanations | **TreeSHAP via `pred_contrib`; coef × value for logreg** | the `shap` package | identical numbers, no heavy dependency |
+| Targeting | **expected value** | top-k by churn risk | +24% at 1%, sizes the campaign itself, loses less when over-contacting |
+| Drift | **own PSI (~30 lines)** | Evidently | the model's own view of inputs, no heavy dependency |
+| Retrain trigger | **matured-label performance** | input drift alone | December 2016 was concept drift with stable inputs |
+| Registry | **MLflow aliases (champion / challenger)** | file paths | serving loads `models:/churnguard@champion`; promotion and rollback are alias moves |
+| Orchestration | **Makefile** | Prefect, Airflow | monthly batch on one machine; every step is still a separate, atomic target |
+| UI | **React web console + Streamlit** | Streamlit only | Streamlit for analysts; a typed, designed web app for business users, on read-only endpoints |
+| Cold storage | **rclone → Google Drive, hash-verified** | keep everything local | frees 17 GB; silver/gold stay local because the pipeline reads them constantly |
+
+---
+
+## 🚀 Run it locally
+
+Python 3.11+ (developed on 3.13), [uv](https://docs.astral.sh/uv/), Node.js 20.19+ for the web
+console. System tools: `brew install sevenzip rclone`, Docker Desktop for the container. A
+Kaggle API token in `~/.kaggle/access_token`, with the competition rules accepted.
+
 ```bash
-make serve                        # API on :8000 (terminal 1)
-make web-install                  # once: npm ci from web/package-lock.json
-make web                          # http://localhost:5173 (terminal 2); Vite proxies /api, /health, /members
-make web-check                    # typecheck + unit tests + production build (what CI runs)
+uv sync                          # or: pip install -r requirements.txt -r requirements-dev.txt
+make check                       # ruff + 135 tests (what CI runs)
+
+make download                    # data/raw/*.7z from Kaggle
+make ingest                      # raw -> bronze + DQ gate   (MONTHS=2016-10:2017-03 for a smaller window)
+make silver                      # bronze -> silver
+make spine features feature-report
+make baselines train select      # baselines, tuning, gate v2, MLflow registry
+make backtest                    # EV vs risk vs random, save-rate sensitivity
+make score                       # batch-score next month with the champion
+make monitor                     # ok / warn / retrain
+make pipeline                    # all of the above, end to end
 ```
 
-| Page | What it shows | Operations |
-|---|---|---|
-| Overview | members scored, predicted churn, revenue at risk, contact list, model AUC; risk tiers, revenue by tier, monthly trend, backtest, top reasons, health | tier drill-down into the explorer |
-| Customers | all scored members, server-side paginated | search (ID prefix or msno), tier filter, contact-only, sortable columns, page size, CSV export with confirmation |
-| Customer detail | probability gauge, EV breakdown, recommended play, reason codes, all 52 model inputs | live re-score through the API (checks batch parity), copy msno |
-| Predictions | batch summary, score histogram (log/linear), registry versions, scoring history | score any member as of any date |
-| Retention | campaign planner under a budget, save-rate sensitivity, EV vs risk vs random curves | budget what-if, export that list |
-| Model performance | per-month metrics for every candidate, gate v2 verdicts, holdout test, calibration, baselines, confusion matrix at the top-10% cut-off | metric and candidate toggles, test-population switch |
-| Monitoring | ok/warn/retrain, data quality, score and feature drift, label maturity, drift replay | report month, hide expected drift |
+**Consoles**
 
-What the API does not provide is shown as unavailable rather than filled in: request
-latency and error rates (no metrics endpoint) and uplift estimates (no treatment/control
-data). Risk tiers (<5%, 5-20%, 20-50%, >=50%) are display bands; contact decisions stay
-expected-value based.
+```bash
+make serve                       # terminal 1: API on http://localhost:8000 (docs at /docs)
+make web-install                 # once: npm ci
+make web                         # terminal 2: React console on http://localhost:5173
+make console                     # or the Streamlit console on http://localhost:8501
+```
 
-## CI
+**Other targets:** `make docker-build docker-run`, `make mlflow-ui`, `make registry`,
+`make monitor-replay`, `make archive LAYER=raw`, `make restore LAYER=bronze/user_logs`,
+`make storage-status`, `make telco`, `make web-check`, `make help` for the full list.
 
-`.github/workflows/ci.yml` on every push and PR:
+<details>
+<summary><b>Cold storage setup</b></summary>
 
-- **lint + tests:** `uv sync --frozen` (fails on a stale lock), ruff, all tests with 7-Zip
-  and rclone installed. Tests use synthetic fixtures only, so CI needs none of the 30 GB
-  dataset; a clean clone with no `data/` or registry passes.
-- **requirements:** `requirements*.txt` must equal a fresh export of `uv.lock`
-- **web:** `npm ci` (fails on a stale lock), typecheck, unit tests and production build of
-  the web console
-- **docker:** the image builds and imports the API and LightGBM (catches missing `libgomp`)
+Raw archives and bronze live on an rclone remote (Google Drive by default, `storage.remote` in
+`configs/base.yaml`); silver and gold stay local. Configure a Drive remote named `gdrive` with
+**your own OAuth client ID** and scope `drive.file`: files are only visible to the client ID
+that uploaded them, so never upload with rclone's shared client. The OAuth app stays in Google
+"Testing" mode, so tokens expire every 7 days: `rclone config reconnect gdrive:`.
 
-`make check` runs the same lint + test step locally.
+</details>
+
+---
+
+## 🗂 Repository layout
+
+```
+configs/base.yaml            paths, DuckDB limits, splits, retention economics, monitoring thresholds
+src/churnguard/
+  data/                      catalog, 7z streaming, bronze, DQ, silver
+  labels/spine.py            point-in-time label spine (official labeller port)
+  features/                  registry.yaml, families (member / billing / engagement), builder, diagnostics
+  modeling/                  baselines, Telco check, LightGBM + Optuna, candidates, out-of-time evaluation, selection
+  decisioning/               expected value, budget selection, backtest
+  serving/                   shared scoring path, batch job, FastAPI app, read-only console API
+  monitoring/                PSI drift, delayed-label performance, decision rule, replay
+  console/                   Streamlit console
+  tracking.py                MLflow wrapper, promotion gate v2, champion/challenger aliases
+  storage.py                 rclone cold storage with hash verification
+web/                         React + TypeScript console (Vite)
+tests/                       135 tests on synthetic fixtures (no dataset needed)
+docs/                        ARCHITECTURE.md, animated diagrams
+```
+
+## ✅ CI and quality
+
+`.github/workflows/ci.yml` runs on every push and PR:
+
+| Job | Checks |
+|---|---|
+| ![lint+tests](https://img.shields.io/badge/-lint%20%2B%20tests-3DD9E3?style=flat-square) | `uv sync --frozen`, ruff, 135 tests with 7-Zip and rclone installed; synthetic fixtures only, so a clean clone needs none of the 30 GB dataset |
+| ![requirements](https://img.shields.io/badge/-requirements-9B8CFF?style=flat-square) | `requirements*.txt` must equal a fresh export of `uv.lock` |
+| ![web](https://img.shields.io/badge/-web-61DAFB?style=flat-square) | `npm ci`, strict typecheck, 9 unit tests, production build |
+| ![docker](https://img.shields.io/badge/-docker-2496ED?style=flat-square) | image builds and imports the API and LightGBM (catches a missing `libgomp`) |
+
+Pytest treats **warnings as errors**, so deprecations surface the day they appear.
+
+## 🧭 Limitations and next steps
+
+- **The save rate is an assumption.** Run the first campaign with a randomised holdout to measure
+  it, then fit an uplift model on the treatment/control data.
+- **Few months of history.** Four out-of-time months make "worst month" a noisy statistic;
+  with more history the blend is the first challenger to re-test.
+- **The clock feature** `days_since_first_txn` is capped by the dataset's start date; replace it
+  with registration tenure in model v2.
+- **Request metrics.** Add Prometheus middleware so the console can chart latency and error rates.
