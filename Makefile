@@ -65,3 +65,11 @@ baselines:  ## prior / rule / logreg on time splits + shuffled-label leakage con
 
 telco:  ## IBM Telco sanity check of the shared modelling code (expects AUC 0.82-0.88)
 	$(PY) -m churnguard.modeling.telco
+
+.PHONY: train mlflow-ui
+TRIALS ?=
+train:  ## Tune + calibrate + explain LightGBM, log to MLflow, register, promotion gate
+	$(PY) -m churnguard.modeling.train $(if $(TRIALS),--trials $(TRIALS))
+
+mlflow-ui:  ## Browse runs and the model registry at http://127.0.0.1:5000
+	MLFLOW_DISABLE_AGENT_HINT=1 uv run mlflow ui --backend-store-uri sqlite:///mlruns.db --port 5000

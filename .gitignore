@@ -15,6 +15,7 @@ reports/dq/
 reports/labels/
 reports/features/
 reports/baselines/
+reports/gbm/
 
 # Python
 __pycache__/
@@ -34,3 +35,4 @@ logs/
 
 # Kaggle competition material: fetched by `make reference`, not redistributed
 docs/reference/
+mlruns.db

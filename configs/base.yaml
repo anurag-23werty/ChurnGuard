@@ -43,3 +43,10 @@ modeling:
   test_month: "2017-03"     # labels from official train_v2 (our March labels are immature)
   train_sample: 1000000     # in-memory models on a 16 GB laptop; null = all decided rows
   seed: 42
+  tuning_trials: 25         # Optuna trials over 3 rolling folds inside train months
+  tuning_timeout_s: 1800
+
+mlflow:
+  tracking_uri: "sqlite:///mlruns.db"   # experiments + model registry; artifacts in mlartifacts/
+  experiment: churnguard
+  registered_model: churnguard-gbm

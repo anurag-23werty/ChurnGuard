@@ -60,6 +60,16 @@ class ModelingConfig:
     # Rows sampled from train for in-memory models (None = all decided rows).
     train_sample: int | None = 1_000_000
     seed: int = 42
+    tuning_trials: int = 25
+    tuning_timeout_s: int | None = 1800
+
+
+@dataclass(frozen=True)
+class MLflowConfig:
+    # Relative sqlite paths resolve against the project root.
+    tracking_uri: str = "sqlite:///mlruns.db"
+    experiment: str = "churnguard"
+    registered_model: str = "churnguard-gbm"
 
 
 @dataclass(frozen=True)
@@ -70,6 +80,7 @@ class Settings:
     duckdb: DuckDBConfig = field(default_factory=DuckDBConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
     modeling: ModelingConfig = field(default_factory=ModelingConfig)
+    mlflow: MLflowConfig = field(default_factory=MLflowConfig)
 
 
 def _resolve(p: str, root: Path) -> Path:
@@ -87,6 +98,7 @@ def load_settings(config_path: str | Path | None = None, root: Path = PROJECT_RO
         duckdb=DuckDBConfig(**raw.get("duckdb", {})),
         storage=StorageConfig(**raw.get("storage", {})),
         modeling=_modeling(raw.get("modeling", {})),
+        mlflow=MLflowConfig(**raw.get("mlflow", {})),
     )
 
 
