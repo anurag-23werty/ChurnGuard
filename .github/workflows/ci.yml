@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.26"
+          enable-cache: true
+      - name: System tools exercised by tests (7z streaming, rclone round trip)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends 7zip rclone
+      - name: Install (fails if uv.lock is stale)
+        run: uv sync --frozen
+      - name: Lint
+        run: uv run ruff check src tests
+      - name: Tests (synthetic fixtures only; no dataset needed)
+        env:
+          MLFLOW_DISABLE_AGENT_HINT: "1"
+        run: uv run pytest -o addopts="" -q
+
+  requirements:
+    name: requirements*.txt match uv.lock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.26"
+      - run: make requirements
+      - name: Fail if the exported files changed
+        run: git diff --exit-code -- requirements.txt requirements-dev.txt
+
+  docker:
+    name: docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t churnguard:ci .
+      - name: Package imports inside the image (lightgbm needs libgomp)
+        run: >
+          docker run --rm churnguard:ci uv run --no-sync python -c
+          "import churnguard.serving.api, churnguard.modeling.gbm; print('ok')"
