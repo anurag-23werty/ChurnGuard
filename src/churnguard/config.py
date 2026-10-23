@@ -38,7 +38,7 @@ class IngestConfig:
 
 @dataclass(frozen=True)
 class DuckDBConfig:
-    memory_limit: str = "8GB"
+    memory_limit: str = "6GB"
     threads: int = 6
 
 

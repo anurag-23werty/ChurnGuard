@@ -26,7 +26,8 @@ ingest:
   min_free_disk_gb: 8
 
 duckdb:
-  memory_limit: 8GB
+  # 16 GB laptop: leave headroom for the OS + apps, or macOS swaps (swap eats disk space).
+  memory_limit: 6GB
   threads: 6
 
 storage:
