@@ -67,12 +67,18 @@ def split_sql(settings: Settings, name: str) -> str:
     raise ValueError(f"unknown split {name!r}; expected one of {SPLITS}")
 
 
+def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
+    """The one place model-input dtypes are decided; training and serving both call it."""
+    X = df[list(registry())].copy()
+    for c in categorical_features():
+        X[c] = X[c].astype("string")  # codes, not quantities
+    num = numeric_features()
+    X[num] = X[num].astype("float32")  # NULL -> NaN; half the memory of float64
+    return X
+
+
 def load_split(settings: Settings, name: str, con=None) -> Split:
     con = con or connect(settings)
     df = con.execute(f"SELECT * FROM ({split_sql(settings, name)}) ORDER BY member_id").df()
-    for c in categorical_features():
-        df[c] = df[c].astype("string")  # codes, not quantities
-    num = numeric_features()
-    df[num] = df[num].astype("float32")  # NULL -> NaN; half the memory of float64
     meta = df[["member_id", "label_month", "label_source"]]
-    return Split(name=name, X=df[list(registry())], y=df["y"].astype("int8"), meta=meta)
+    return Split(name=name, X=prepare_features(df), y=df["y"].astype("int8"), meta=meta)

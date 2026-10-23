@@ -127,6 +127,14 @@ def promote(settings: Settings, version: str) -> None:
                                               version)
 
 
+def champion_info(settings: Settings, alias: str = CHAMPION) -> dict:
+    mlflow.set_tracking_uri(tracking_uri(settings))
+    mv = MlflowClient().get_model_version_by_alias(settings.mlflow.registered_model, alias)
+    return {"name": settings.mlflow.registered_model, "version": str(mv.version),
+            "model_type": mv.tags.get("model_type", "unknown"), "run_id": mv.run_id,
+            "alias": alias}
+
+
 def load_champion(settings: Settings, alias: str = CHAMPION):
     """The ChurnModel behind a registry alias, loaded exactly as serving loads it."""
     mlflow.set_tracking_uri(tracking_uri(settings))
