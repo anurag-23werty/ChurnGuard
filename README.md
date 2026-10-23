@@ -11,7 +11,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [x] Phase 0: architecture
 - [x] Phase 1: ingestion (raw → bronze Parquet)
 - [x] Phase 2: cleaning (silver)
-- [ ] Phase 3: label spine
+- [x] Phase 3: label spine
 - [ ] Phase 4: point-in-time features
 - [ ] Phase 5: baselines
 - [ ] Phase 6: LightGBM + calibration + SHAP
@@ -32,6 +32,7 @@ make download                    # data/raw/*.7z
 make ingest                      # raw -> bronze Parquet + DQ report
 make ingest MONTHS=2016-10:2017-03   # or a smaller window on a constrained machine
 make silver                      # bronze -> silver (cleaned, member_id keyed)
+make spine                       # label spine + validation vs official labels
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
@@ -65,3 +66,28 @@ One-time setup: `rclone config` a Drive remote named `gdrive` with **your own OA
 and scope `drive.file` (files are only visible to the client ID that uploaded them, so never
 upload with rclone's shared client). The OAuth app stays in Google "Testing" mode, so tokens
 expire every 7 days: `rclone config reconnect gdrive:`.
+
+## Label spine
+
+`data/gold/spine/label_month=YYYY-MM/` holds one row per (member, month M) with
+`as_of_date` = first day of M: the decision point. Population and paid-through date use only
+transactions before it; features must too. Port of KKBox's official `WSDMChurnLabeller.scala`
+(`make reference`), with two deliberate, measured changes:
+
+- **Population:** any transaction before M expiring in M, over all history (the Scala file
+  uses only M-1's last transaction). Recall vs official files: 86% -> **99%**.
+- **Label maturity:** rows are `decided` or `pending` (is_churn NULL) based on whether
+  effective expiry + 30 days is inside the data, instead of counting unseen renewals as churn.
+
+| Month | Members | Pending | Churn (decided) | Official pop. recall / precision | Label agreement |
+|---|---|---|---|---|---|
+| 2016-10 | 944,849 | 1,224 | 4.52% | | |
+| 2016-11 | 1,000,052 | 1,489 | 9.44% | | |
+| 2016-12 | 991,108 | 1,821 | 8.42% | | |
+| 2017-01 | 977,500 | 2,534 | 5.41% | | |
+| 2017-02 | 984,196 | 4,395 | 4.71% | 99.1% / 99.9% (train.csv) | 98.0% |
+| 2017-03 | 991,602 | 49,676 | (immature) | 98.7% / 96.6% (train_v2) | 96.0% |
+
+Known gap: ~1/3 of disagreements are "renewed then cancelled, never renewed again", which the
+official labels count as churn and the Scala logic does not. March needs April
+transactions to mature, so the March holdout uses the official train_v2 labels.

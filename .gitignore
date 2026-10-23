@@ -12,6 +12,7 @@ mlartifacts/
 models/
 reports/drift/
 reports/dq/
+reports/labels/
 
 # Python
 __pycache__/
@@ -28,3 +29,6 @@ __pycache__/
 
 # Run logs
 logs/
+
+# Kaggle competition material: fetched by `make reference`, not redistributed
+docs/reference/

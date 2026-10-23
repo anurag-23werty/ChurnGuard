@@ -44,3 +44,10 @@ storage-status:  ## Local vs archived layers and free disk
 .PHONY: silver
 silver:  ## Bronze -> silver (member_id keyed, cleaned, contract-checked)
 	$(PY) -m churnguard.data.silver
+
+.PHONY: spine reference
+spine:  ## Point-in-time label spine (gold) + validation vs official labels
+	$(PY) -m churnguard.labels.spine
+
+reference:  ## Fetch KKBox's official labeller (not redistributed in git)
+	uv run kaggle competitions download kkbox-churn-prediction-challenge -f WSDMChurnLabeller.scala -p docs/reference -q
