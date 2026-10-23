@@ -25,3 +25,6 @@ __pycache__/
 # Env / OS
 .env
 .DS_Store
+
+# Run logs
+logs/
