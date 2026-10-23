@@ -110,3 +110,10 @@ docker-run:  ## Run the API image with data, registry DB and artifacts mounted
 requirements:  ## Regenerate pinned requirements*.txt from uv.lock (run after uv add/remove)
 	uv export --format requirements-txt --no-hashes --no-dev --frozen -o requirements.txt
 	uv export --format requirements-txt --no-hashes --only-dev --frozen -o requirements-dev.txt
+
+.PHONY: monitor monitor-replay
+monitor:  ## Data quality, drift, matured performance + ok/warn/retrain (exit 3 = retrain)
+	$(PY) -m churnguard.monitoring.monitor $(if $(MONTH),--month $(MONTH))
+
+monitor-replay:  ## Replay drift monitoring over history (each month vs the 2 before it)
+	$(PY) -m churnguard.monitoring.replay

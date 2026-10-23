@@ -17,7 +17,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [x] Phase 6: model selection (LightGBM, blends, calibration, SHAP, MLflow registry)
 - [x] Phase 7: retention decisioning (expected-value targeting + backtest)
 - [x] Phase 8: serving (batch scorer, FastAPI, Docker)
-- [ ] Phase 9: monitoring
+- [x] Phase 9: monitoring (drift, delayed-label performance, retrain rule)
 - [ ] Phase 10: UI & CI
 
 ## Install
@@ -63,6 +63,8 @@ make backtest                    # EV vs risk vs random targeting on Feb, save-r
 make score                       # batch-score everyone due next month with the champion
 make serve                        # scoring API on :8000 (docs at /docs)
 make docker-build docker-run     # same API in a container
+make monitor                     # latest scored month: DQ, drift, matured performance, decision
+make monitor-replay              # would monitoring have flagged past months?
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
@@ -315,3 +317,52 @@ which adds up exactly to the model's logit (tested).
 **Docker:** `Dockerfile` runs the API as a non-root user with a healthcheck; data, the
 registry DB and artifacts are mounted. MLflow stores artifact locations as absolute host
 paths (`file:///.../mlartifacts`), so `make docker-run` mounts them at the same path.
+
+## Monitoring
+
+`make monitor` checks a scored month against the champion's training months (Oct 2016 -
+Feb 2017) and returns **ok / warn / retrain** (exit code 3 on retrain, for a scheduler):
+
+| check | how | retrain if | warn if |
+|---|---|---|---|
+| data quality | volume vs reference average, null-rate jumps, p in [0, 1] | p out of range | volume outside 0.5-2x, null jump > 0.10 |
+| feature drift | PSI on the model's own view of the 52 inputs (reference-quantile bins, missing as its own bin) | >= 3 features PSI > 0.25 | any feature PSI > 0.25 |
+| score drift | PSI of served probabilities vs champion scores on the reference | PSI > 0.25 | PSI > 0.10 |
+| performance | served scores joined to labels as they mature (spine SQL on current data) | complete month AUC >= 0.03 below the champion's out-of-time AUC, or ECE > 0.02 | |
+
+Labels mature ~30 days after expiry, so each month is `pending`, `partial` (< 95% decided)
+or `complete`. Partial and in-sample months are reported, never acted on: the first outcomes
+to resolve are renewals, so early AUCs are optimistic (March, 94.99% decided, shows 0.978).
+The batch scorer saves `features.parquet` next to the scores; re-scoring it reproduces all
+1,012,577 April probabilities bit for bit, so it doubles as an audit trail.
+
+**April 2017:** score PSI 0.008, volume 1.03x, 49/52 features stable -> **ok** (with
+`days_since_first_txn` reported but not alerting, see below).
+
+**Replay: would it have caught December 2016?** No, and that is the finding.
+
+| month | vs | score PSI | features PSI > 0.25 | 0.10-0.25 | decision |
+|---|---|---|---|---|---|
+| Dec 16 | Oct-Nov | 0.003 | 0 | 2 | ok |
+| Jan 17 | Nov-Dec | 0.011 | 0 | 2 | ok |
+| Feb 17 | Dec-Jan | 0.007 | 0 | 1 | ok |
+| Mar 17 | Jan-Feb | 0.015 | 0 | 3 | ok |
+| Apr 17 | Feb-Mar | 0.006 | 0 | 1 | ok |
+
+December's inputs looked like every other month; what changed was the relationship between
+features and churn (concept drift), which PSI cannot see. Only the delayed-label rule
+catches it: December's out-of-time AUC was 0.832 vs the 0.896 expected, a 0.064 drop that
+triggers **retrain** about 30 days after the month closes (encoded in `tests/test_monitor.py`).
+Input monitoring is still worth running: it catches broken pipelines and population shifts
+immediately, but it is not a substitute for waiting for labels.
+
+Two bugs the monitor surfaced, both fixed:
+
+- **Clock feature, alert fatigue.** KKBox transactions start 2015-01-01, so
+  `days_since_first_txn` is capped by the dataset start and drifts every month (PSI 0.6-0.8):
+  every month was `warn`. It is now marked `expected_drift` in the registry (still reported,
+  never alerting). A future model should cap it or use registration tenure instead.
+- **Category codes depended on who wrote the parquet.** DuckDB-written int-with-nulls
+  columns read back as float64 (`"13.0"`), pandas-written ones as Int32 (`"13"`), which made
+  city/registered_via PSI ~15 and would have mis-encoded categories in performance replays.
+  `prepare_features` now canonicalises codes; served April scores are unchanged (max diff 0).
