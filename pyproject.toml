@@ -51,3 +51,10 @@ filterwarnings = [
     # Raised by MLflow's own pyfunc modules at import time (message starts with an ANSI code).
     "ignore:.*Any type hint is inferred as AnyType:UserWarning",
 ]
+
+[tool.pyright]
+# Editors (Pylance/pyright) resolve imports from the project venv and the src layout.
+venvPath = "."
+venv = ".venv"
+extraPaths = ["src"]
+pythonVersion = "3.13"
