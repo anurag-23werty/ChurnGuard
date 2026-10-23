@@ -58,7 +58,10 @@ def open_stream(path: Path) -> Iterator[BinaryIO]:
         raise
     finally:
         proc.stdout.close()
-        stderr = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
+        stderr = ""
+        if proc.stderr:
+            stderr = proc.stderr.read().decode(errors="replace")
+            proc.stderr.close()
         returncode = proc.wait()
     # Only reached on normal exit: a truncated or corrupt archive must fail the ingest.
     if returncode != 0:
