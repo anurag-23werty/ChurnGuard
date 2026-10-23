@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" width="1200" height="380" role="img" aria-labelledby="t d">
+  <title id="t">ChurnGuard pipeline</title>
+  <desc id="d">Kaggle archives stream into bronze Parquet, are cleaned into silver, turned into a point-in-time label spine and 52 features in gold, used to train and select models in MLflow, served as batch scores and an API to the web and Streamlit consoles, and monitored for drift and delayed-label performance, which can trigger retraining. Raw and bronze are archived to Google Drive.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5e6372"/>
+    </marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#f5b53d"/>
+    </marker>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif}
+      .h{font-size:15px;font-weight:600;fill:#ecedf2}
+      .b{font-size:12px;fill:#a2a6b4}
+      .m{font:500 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+      .tag{font:600 11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+      .flow{stroke:#5e6372;stroke-width:2;stroke-dasharray:5 6;animation:f 1s linear infinite}
+      .loop{stroke:#f5b53d;stroke-width:2;stroke-dasharray:6 6;animation:f 1.2s linear infinite;fill:none}
+      .cold{stroke:#3dd9e3;stroke-width:1.5;stroke-dasharray:3 5;animation:f 1.4s linear infinite;fill:none}
+      @keyframes f{to{stroke-dashoffset:-22}}
+      .node{animation:in .6s ease both}
+      @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+      @media (prefers-reduced-motion:reduce){.flow,.loop,.cold,.node{animation:none}}
+    </style>
+  </defs>
+  <rect width="1200" height="380" rx="20" fill="#0b0c10"/>
+  <rect x=".5" y=".5" width="1199" height="379" rx="19.5" fill="none" stroke="#23262f"/>
+
+  <!-- connectors -->
+  <g fill="none" marker-end="url(#a)">
+    <path class="flow" d="M166 150H184"/>
+    <path class="flow" d="M328 150H346"/>
+    <path class="flow" d="M490 150H508"/>
+    <path class="flow" d="M652 150H670"/>
+    <path class="flow" d="M814 150H832"/>
+    <path class="flow" d="M976 150H994"/>
+  </g>
+  <circle r="5" fill="#9b8cff">
+    <animateMotion dur="7s" repeatCount="indefinite" path="M95 150H1065"/>
+  </circle>
+  <circle r="4" fill="#3dd9e3">
+    <animateMotion dur="7s" begin="-3.5s" repeatCount="indefinite" path="M95 150H1065"/>
+  </circle>
+
+  <!-- nodes: x step 162, width 142 -->
+  <g class="node" style="animation-delay:0s">
+    <rect x="24" y="96" width="142" height="108" rx="12" fill="#14161c" stroke="#30343f"/>
+    <rect x="36" y="80" width="64" height="22" rx="6" fill="#1b1e26"/><text x="68" y="95" class="tag" fill="#c4c7d2" text-anchor="middle">source</text>
+    <text x="40" y="132" class="h">Kaggle .7z</text>
+    <text x="40" y="154" class="b">members, transactions</text>
+    <text x="40" y="171" class="b">user_logs, labels</text>
+    <text x="40" y="192" class="m" fill="#ecedf2">410M rows</text>
+  </g>
+  <g class="node" style="animation-delay:.1s">
+    <rect x="186" y="96" width="142" height="108" rx="12" fill="#14161c" stroke="#30343f"/>
+    <rect x="198" y="80" width="40" height="22" rx="6" fill="#0f2a2d"/><text x="218" y="95" class="tag" fill="#7fe6ec" text-anchor="middle">P1</text>
+    <text x="202" y="132" class="h">Bronze</text>
+    <text x="202" y="154" class="b">streamed 7z → Parquet</text>
+    <text x="202" y="171" class="b">typed, DQ-gated</text>
+    <text x="202" y="192" class="m" fill="#ecedf2">~4.5 min</text>
+  </g>
+  <g class="node" style="animation-delay:.2s">
+    <rect x="348" y="96" width="142" height="108" rx="12" fill="#14161c" stroke="#30343f"/>
+    <rect x="360" y="80" width="40" height="22" rx="6" fill="#0f2a2d"/><text x="380" y="95" class="tag" fill="#7fe6ec" text-anchor="middle">P2</text>
+    <text x="364" y="132" class="h">Silver</text>
+    <text x="364" y="154" class="b">deduped, clipped</text>
+    <text x="364" y="171" class="b">int32 member_id</text>
+    <text x="364" y="192" class="m" fill="#ecedf2">46 s build</text>
+  </g>
+  <g class="node" style="animation-delay:.3s">
+    <rect x="510" y="96" width="142" height="108" rx="12" fill="#14161c" stroke="#30343f"/>
+    <rect x="522" y="80" width="60" height="22" rx="6" fill="#1f1b36"/><text x="552" y="95" class="tag" fill="#c9c1ff" text-anchor="middle">P3–4</text>
+    <text x="526" y="132" class="h">Gold</text>
+    <text x="526" y="154" class="b">label spine (as-of)</text>
+    <text x="526" y="171" class="b">52 features, no leaks</text>
+    <text x="526" y="192" class="m" fill="#ecedf2">5.9M rows</text>
+  </g>
+  <g class="node" style="animation-delay:.4s">
+    <rect x="672" y="96" width="142" height="108" rx="12" fill="#14161c" stroke="#30343f"/>
+    <rect x="684" y="80" width="60" height="22" rx="6" fill="#1f1b36"/><text x="714" y="95" class="tag" fill="#c9c1ff" text-anchor="middle">P5–6</text>
+    <text x="688" y="132" class="h">Models</text>
+    <text x="688" y="154" class="b">5 candidates, gate v2</text>
+    <text x="688" y="171" class="b">MLflow registry</text>
+    <text x="688" y="192" class="m" fill="#ecedf2">AUC 0.896</text>
+  </g>
+  <g class="node" style="animation-delay:.5s">
+    <rect x="834" y="96" width="142" height="108" rx="12" fill="#14161c" stroke="#30343f"/>
+    <rect x="846" y="80" width="60" height="22" rx="6" fill="#1f1b36"/><text x="876" y="95" class="tag" fill="#c9c1ff" text-anchor="middle">P7–8</text>
+    <text x="850" y="132" class="h">Decide + serve</text>
+    <text x="850" y="154" class="b">EV targeting, batch</text>
+    <text x="850" y="171" class="b">FastAPI, Docker</text>
+    <text x="850" y="192" class="m" fill="#ecedf2">1.01M / 19 s</text>
+  </g>
+  <g class="node" style="animation-delay:.6s">
+    <rect x="996" y="96" width="142" height="108" rx="12" fill="#17152a" stroke="#2b2650"/>
+    <rect x="1008" y="80" width="44" height="22" rx="6" fill="#1f1b36"/><text x="1030" y="95" class="tag" fill="#c9c1ff" text-anchor="middle">P10</text>
+    <text x="1012" y="132" class="h">Consoles</text>
+    <text x="1012" y="154" class="b">React web console</text>
+    <text x="1012" y="171" class="b">Streamlit console</text>
+    <text x="1012" y="192" class="m" fill="#7fe6ec">13,893 to contact</text>
+  </g>
+
+  <!-- monitoring loop -->
+  <path class="loop" d="M905 206V286H743V212" marker-end="url(#aa)"/>
+  <rect x="756" y="270" width="136" height="32" rx="8" fill="#2e2410"/>
+  <text x="824" y="284" class="tag" fill="#f8c866" text-anchor="middle">P9 monitor</text>
+  <text x="824" y="297" class="b" text-anchor="middle" style="font-size:10px;fill:#f8c866">drift + delayed labels</text>
+  <text x="824" y="324" class="b" text-anchor="middle">retrain when matured AUC drops</text>
+
+  <!-- cold storage -->
+  <path class="cold" d="M95 206V330H257V206"/>
+  <rect x="104" y="312" width="144" height="34" rx="8" fill="#0f2224" stroke="#1e3a3d"/>
+  <text x="176" y="333" class="tag" fill="#7fe6ec" text-anchor="middle">rclone → Google Drive</text>
+  <text x="176" y="364" class="b" text-anchor="middle">raw + bronze cold storage, hash-verified</text>
+
+  <text x="24" y="44" class="h" style="font-size:18px">Medallion pipeline, end to end</text>
+  <text x="24" y="66" class="b">every arrow is a make target; each step publishes atomically</text>
+  <text x="1176" y="44" class="m" fill="#5e6372" text-anchor="end">make pipeline</text>
+</svg>
