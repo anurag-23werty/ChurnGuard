@@ -53,6 +53,11 @@ class ChurnPyfunc(mlflow.pyfunc.PythonModel):
     """Registry wrapper: `mlflow.pyfunc.load_model("models:/<name>@champion")` returns
     calibrated churn probabilities for a frame of registry features."""
 
+    # The signature comes from the registry-feature input example, not type hints; MLflow's
+    # PythonModel.__init_subclass__ honours this flag and skips (and stops warning about)
+    # type-hint based validation.
+    _skip_type_hint_validation = True
+
     def load_context(self, context):
         self.model = joblib.load(context.artifacts["model"])
 
