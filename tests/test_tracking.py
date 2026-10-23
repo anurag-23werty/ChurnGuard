@@ -59,3 +59,6 @@ def test_register_alias_and_load_champion(settings, tmp_path):
     out = served.predict(X.head(4))
     assert list(out.columns) == ["churn_probability"]
     assert out.churn_probability.to_numpy() == pytest.approx(model.predict_proba(X.head(4)))
+    loaded = tracking.load_champion(s)
+    assert isinstance(loaded, ChurnModel)
+    assert loaded.predict_proba(X.head(4)) == pytest.approx(model.predict_proba(X.head(4)))

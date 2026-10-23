@@ -112,3 +112,10 @@ def champion_metrics(settings: Settings) -> dict | None:
 def promote(settings: Settings, version: str) -> None:
     MlflowClient().set_registered_model_alias(settings.mlflow.registered_model, CHAMPION,
                                               version)
+
+
+def load_champion(settings: Settings, alias: str = CHAMPION):
+    """The ChurnModel behind a registry alias, loaded exactly as serving loads it."""
+    mlflow.set_tracking_uri(tracking_uri(settings))
+    uri = f"models:/{settings.mlflow.registered_model}@{alias}"
+    return mlflow.pyfunc.load_model(uri).unwrap_python_model().model

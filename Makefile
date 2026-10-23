@@ -73,3 +73,7 @@ train:  ## Tune + calibrate + explain LightGBM, log to MLflow, register, promoti
 
 mlflow-ui:  ## Browse runs and the model registry at http://127.0.0.1:5000
 	MLFLOW_DISABLE_AGENT_HINT=1 uv run mlflow ui --backend-store-uri sqlite:///mlruns.db --port 5000
+
+.PHONY: backtest
+backtest:  ## Retention targeting backtest (EV vs risk vs random) with the champion model
+	$(PY) -m churnguard.decisioning.backtest
