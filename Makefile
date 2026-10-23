@@ -85,3 +85,23 @@ registry:  ## List registered model versions and aliases
 .PHONY: select
 select:  ## Compare candidates on every out-of-time month, gate v2, register + promote
 	$(PY) -m churnguard.modeling.select
+
+.PHONY: score serve docker-build docker-run
+MONTH ?=
+score:  ## Batch-score everyone due in MONTH (default: month after last transaction)
+	$(PY) -m churnguard.serving.batch $(if $(MONTH),--month $(MONTH))
+
+serve:  ## Run the scoring API locally on :8000
+	uv run uvicorn churnguard.serving.api:app --port 8000
+
+docker-build:  ## Build the API image
+	docker build -t churnguard:latest .
+
+# MLflow records artifact URIs as absolute host paths, so mlartifacts is mounted at the
+# same absolute path inside the container.
+docker-run:  ## Run the API image with data, registry DB and artifacts mounted
+	docker run --rm -p 8000:8000 \
+	  -v $(CURDIR)/data:/app/data \
+	  -v $(CURDIR)/mlruns.db:/app/mlruns.db \
+	  -v $(CURDIR)/mlartifacts:$(CURDIR)/mlartifacts:ro \
+	  churnguard:latest
