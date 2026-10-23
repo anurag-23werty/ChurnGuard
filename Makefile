@@ -40,3 +40,7 @@ restore:  ## Pull an archived layer back: make restore LAYER=bronze/user_logs
 
 storage-status:  ## Local vs archived layers and free disk
 	$(PY) -m churnguard.storage status
+
+.PHONY: silver
+silver:  ## Bronze -> silver (member_id keyed, cleaned, contract-checked)
+	$(PY) -m churnguard.data.silver

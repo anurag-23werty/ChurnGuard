@@ -10,7 +10,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 
 - [x] Phase 0: architecture
 - [x] Phase 1: ingestion (raw → bronze Parquet)
-- [ ] Phase 2: cleaning (silver)
+- [x] Phase 2: cleaning (silver)
 - [ ] Phase 3: label spine
 - [ ] Phase 4: point-in-time features
 - [ ] Phase 5: baselines
@@ -31,10 +31,24 @@ make test
 make download                    # data/raw/*.7z
 make ingest                      # raw -> bronze Parquet + DQ report
 make ingest MONTHS=2016-10:2017-03   # or a smaller window on a constrained machine
+make silver                      # bronze -> silver (cleaned, member_id keyed)
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
 reconciling rows read vs. written. DQ reports land in `reports/dq/<table>.json`.
+
+Silver layout: `data/silver/<table>/` keyed by an int32 `member_id` (append-only map in
+`silver/member_ids`), with per-rule hit counts and bronze row reconciliation in each
+`_manifest.json`. On the 2016-07..2017-03 window:
+
+| Table | Bronze rows | Silver rows | Bronze size | Silver size | Notes |
+|---|---|---|---|---|---|
+| user_logs | 155,544,791 | 155,544,791 | 6.4 GB | 1.4 GB | 37,244 `total_secs` clipped to [0, 86400] |
+| transactions | 22,978,755 | 22,975,416 | 775 MB | 60 MB | 3,339 exact dups dropped; 1,776 1970 expiries nulled |
+| members | 6,769,473 | 6,769,473 | 225 MB | 36 MB | 4.55M ages outside 10-80 nulled |
+| labels | 1,963,891 | 1,963,891 | 62 MB | 5.7 MB | |
+
+Full silver build: 46 s.
 
 ## Cold storage
 
