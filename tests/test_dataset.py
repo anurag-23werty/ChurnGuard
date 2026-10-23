@@ -62,3 +62,18 @@ def test_dtypes(store):
     X = load_split(store, "valid").X
     assert all(X[c].dtype == "string" for c in categorical_features())
     assert {str(X[c].dtype) for c in X if c not in categorical_features()} == {"float32"}
+
+
+def test_category_codes_are_canonical_however_the_data_was_loaded():
+    import numpy as np
+    import pandas as pd
+
+    from churnguard.modeling.dataset import category_codes
+
+    forms = [pd.Series([13, 1, None], dtype="Int32"),
+             pd.Series([13.0, 1.0, np.nan], dtype="float64"),
+             pd.Series(["13", "1", None], dtype="string")]
+    for s in forms:
+        assert category_codes(s).tolist() == ["13", "1", pd.NA]
+    assert category_codes(pd.Series([41, 38], dtype="int32")).tolist() == ["41", "38"]
+    assert category_codes(pd.Series(["male", None])).tolist() == ["male", pd.NA]

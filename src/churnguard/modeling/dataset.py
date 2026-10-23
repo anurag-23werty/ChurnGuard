@@ -67,11 +67,20 @@ def split_sql(settings: Settings, name: str) -> str:
     raise ValueError(f"unknown split {name!r}; expected one of {SPLITS}")
 
 
+def category_codes(s: pd.Series) -> pd.Series:
+    """Canonical string codes. Integer codes arrive as int, Int32 or float64 depending on
+    who wrote the parquet (pandas keeps Int32, DuckDB-written int-with-nulls reads back as
+    float64), and str(13.0) == "13.0" would be an unseen level. Numeric -> "13"."""
+    if pd.api.types.is_numeric_dtype(s):
+        return s.astype("Float64").round().astype("Int64").astype("string")
+    return s.astype("string")
+
+
 def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
     """The one place model-input dtypes are decided; training and serving both call it."""
     X = df[list(registry())].copy()
     for c in categorical_features():
-        X[c] = X[c].astype("string")  # codes, not quantities
+        X[c] = category_codes(X[c])  # codes, not quantities
     num = numeric_features()
     X[num] = X[num].astype("float32")  # NULL -> NaN; half the memory of float64
     return X
