@@ -1,0 +1,30 @@
+# ChurnGuard base configuration. Paths are relative to the project root.
+paths:
+  raw: data/raw
+  bronze: data/bronze
+  silver: data/silver
+  gold: data/gold
+  reports: reports
+
+kaggle:
+  competition: kkbox-churn-prediction-challenge
+
+ingest:
+  # Inclusive month window "YYYY-MM". null = everything. Applies to time-partitioned tables.
+  # Start small (e.g. 2016-10 .. 2017-03) if disk or RAM is tight.
+  month_start: null
+  month_end: null
+  # Bytes per CSV read block. ~64 MB blocks ≈ 1.2M user_log rows.
+  csv_block_size: 67108864
+  # Rows buffered per month partition before flushing a row group. Worst case memory is
+  # ~(#months x flush_rows x ~100 B) when logs are not date-sorted: ~1.5 GB at 500k.
+  flush_rows: 500000
+  # Rows sampled from each batch for Pandera validation (full-batch checks are vectorised).
+  validate_sample_rows: 20000
+  compression: zstd
+  # Abort before starting if free disk drops below this (GB).
+  min_free_disk_gb: 8
+
+duckdb:
+  memory_limit: 8GB
+  threads: 6
