@@ -13,7 +13,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [x] Phase 2: cleaning (silver)
 - [x] Phase 3: label spine
 - [x] Phase 4: point-in-time features
-- [ ] Phase 5: baselines
+- [x] Phase 5: baselines
 - [ ] Phase 6: LightGBM + calibration + SHAP
 - [ ] Phase 7: retention decisioning
 - [ ] Phase 8: serving (batch + FastAPI)
@@ -35,6 +35,8 @@ make silver                      # bronze -> silver (cleaned, member_id keyed)
 make spine                       # label spine + validation vs official labels
 make features                    # 52 point-in-time features per spine row
 make feature-report              # univariate AUCs + leak smell test
+make telco                       # sanity-check modelling code on IBM Telco
+make baselines                   # prior / rule / logreg + permutation control
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
@@ -112,3 +114,32 @@ mutating the code):
 - **Late registrations:** `registration_date` after `as_of_date` gives NULL tenure.
 - **Leak smell test** (`make feature-report`): fails if any single feature has AUC >= 0.95.
   Current max: `auto_renew_share_180d` 0.775.
+
+## Baselines
+
+Time-ordered splits (`modeling` in `configs/base.yaml`): **train** 2016-10..2017-01 (1M-row
+sample of 3.9M decided rows), **valid** 2017-02 (979,801 rows, derived labels), **test**
+2017-03 (958,189 rows, **official train_v2 labels**).
+
+| valid (Feb 2017) | ROC AUC | PR AUC | log loss | ECE | precision@10% | lift@10% |
+|---|---|---|---|---|---|---|
+| prior | 0.500 | 0.047 | 0.1945 | 0.023 | 0.047 | 1.0 |
+| rule: auto-renew x cancel | 0.849 | 0.370 | 0.1275 | 0.015 | 0.308 | 6.5 |
+| logistic regression | **0.893** | **0.610** | **0.1094** | **0.006** | 0.356 | **7.6** |
+
+| test (Mar 2017, official labels) | ROC AUC | PR AUC | log loss | ECE |
+|---|---|---|---|---|
+| rule | 0.786 | 0.335 | 0.2299 | 0.025 |
+| logistic regression | 0.798 | 0.486 | 0.2409 | 0.038 |
+
+**Valid -> test drop (0.893 -> 0.798) has two parts.** Scoring the same February members
+against official `train.csv` labels instead of derived ones gives 0.856: ~0.036 of the drop
+is the label definition (official labels also count renew-then-cancel as churn: 5.9% vs
+4.7% base rate), the remaining ~0.058 is March itself. Test log loss is worse than the rule
+because the model is calibrated to the derived 7% training rate, not the official 8.8%.
+
+Sanity checks: **IBM Telco** logreg AUC 0.852 (expected 0.82-0.88) validates the shared
+modelling code; the **permutation control** (logreg on 5 label permutations) gives valid
+AUCs 0.41-0.56 around 0.5 (mean 0.483 +/- 0.025 SE) while the real model scores 0.893.
+A single permuted model is *not* a valid check here: random coefficients over strongly
+predictive features project onto the signal by chance (0.42-0.59 across seeds).

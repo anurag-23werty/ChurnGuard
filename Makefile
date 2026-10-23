@@ -58,3 +58,10 @@ features:  ## Point-in-time features for every spine month (gold/features)
 
 feature-report:  ## Univariate AUC/null report; fails if any single feature looks leaky
 	$(PY) -m churnguard.features.diagnostics
+
+.PHONY: baselines telco
+baselines:  ## prior / rule / logreg on time splits + shuffled-label leakage control
+	$(PY) -m churnguard.modeling.baselines
+
+telco:  ## IBM Telco sanity check of the shared modelling code (expects AUC 0.82-0.88)
+	$(PY) -m churnguard.modeling.telco

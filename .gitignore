@@ -14,6 +14,7 @@ reports/drift/
 reports/dq/
 reports/labels/
 reports/features/
+reports/baselines/
 
 # Python
 __pycache__/
