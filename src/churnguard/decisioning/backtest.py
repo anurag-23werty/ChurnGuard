@@ -72,10 +72,14 @@ def main(argv: list[str] | None = None) -> int:
     ev = expected_value(p, revenue, base)
     curve = targeting_curve(ev, y, base)
     report["targeting_curve"] = curve.to_dict(orient="records")
+    best = curve.loc[curve["by_ev"].idxmax()]
+    report["best_fixed_fraction_by_ev"] = {"contact_fraction": float(best.contact_fraction),
+                                           "realised_net_value": float(best.by_ev)}
     out = settings.paths.reports / "decisioning"
     out.mkdir(parents=True, exist_ok=True)
     (out / f"backtest_{args.split}.json").write_text(json.dumps(report, indent=2))
-    print(curve.round(0).to_string(index=False))
+    shown = curve.assign(contact_fraction=curve.contact_fraction.map("{:.0%}".format))
+    print(shown.to_string(index=False, float_format=lambda v: f"{v:,.0f}"))
     return 0
 
 
