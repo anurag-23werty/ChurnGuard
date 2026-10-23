@@ -14,7 +14,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [x] Phase 3: label spine
 - [x] Phase 4: point-in-time features
 - [x] Phase 5: baselines
-- [ ] Phase 6: LightGBM + calibration + SHAP
+- [x] Phase 6: model selection (LightGBM, blends, calibration, SHAP, MLflow registry)
 - [ ] Phase 7: retention decisioning
 - [ ] Phase 8: serving (batch + FastAPI)
 - [ ] Phase 9: monitoring
@@ -37,6 +37,10 @@ make features                    # 52 point-in-time features per spine row
 make feature-report              # univariate AUCs + leak smell test
 make telco                       # sanity-check modelling code on IBM Telco
 make baselines                   # prior / rule / logreg + permutation control
+make train                       # tune LightGBM on rolling folds inside train months
+make select                      # all candidates x all out-of-time months, gate, register
+make registry                    # registered versions + aliases (champion/challenger)
+make mlflow-ui                   # browse runs at http://127.0.0.1:5000
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
@@ -143,3 +147,62 @@ modelling code; the **permutation control** (logreg on 5 label permutations) giv
 AUCs 0.41-0.56 around 0.5 (mean 0.483 +/- 0.025 SE) while the real model scores 0.893.
 A single permuted model is *not* a valid check here: random coefficients over strongly
 predictive features project onto the signal by chance (0.42-0.59 across seeds).
+
+## Model selection
+
+**Champion: logistic regression** (`models:/churnguard@champion`, v1). Five candidates
+were compared on every out-of-time month we have: each month scored by a model trained
+only on earlier months (expanding window), Feb 2017 included. March stays the untouched
+test month.
+
+| ROC AUC by scored month | Nov 16 | **Dec 16** | Jan 17 | Feb 17 | mean | worst |
+|---|---|---|---|---|---|---|
+| logreg | 0.959 | **0.832** | 0.899 | 0.893 | 0.896 | **0.832** |
+| lgbm (Optuna, 25 trials) | 0.964 | 0.781 | 0.908 | 0.915 | 0.892 | 0.781 |
+| lgbm_robust (regularised + monotone) | 0.964 | 0.782 | 0.906 | 0.914 | 0.891 | 0.782 |
+| blend lgbm + logreg | 0.963 | 0.806 | 0.904 | 0.908 | 0.896 | 0.806 |
+| blend robust + logreg | 0.963 | 0.807 | 0.903 | 0.907 | 0.895 | 0.807 |
+
+| PR AUC by scored month | Nov 16 | Dec 16 | Jan 17 | Feb 17 | mean | mean log loss |
+|---|---|---|---|---|---|---|
+| logreg | 0.867 | 0.658 | 0.650 | 0.610 | 0.696 | 0.1321 |
+| lgbm | 0.872 | 0.657 | 0.654 | 0.638 | 0.705 | 0.1325 |
+| blend lgbm + logreg | **0.874** | **0.660** | **0.663** | 0.632 | **0.707** | **0.1300** |
+
+**Why logreg, when the blend wins PR AUC in every month?** The promotion gate (v2,
+`tracking.promotion_decision`) requires mean PR AUC >= baseline + 0.005, mean log loss <=
+baseline, **worst-month ROC AUC within 0.01 of the baseline's**, latest-month ECE <= 0.01,
+a passed permutation control and beating the current champion. Every tree-based candidate
+fails the worst-month rule on December 2016 (blends 0.806-0.807 vs logreg 0.832); the
+single-model LightGBMs also lose on mean log loss. This is a deliberate robustness-first
+choice: a model that ranks well in steady months but degrades sharply in a shift month is
+the riskier one to put in front of a retention budget. With more months of history the
+blend is the first candidate to re-test; the tolerance is a business decision.
+
+What the comparison ruled out:
+
+- **Monotone constraints + heavier regularisation did not fix December** (0.782 vs 0.781),
+  so December is not a "wrong direction" overfit; it is a shift the trees cannot extrapolate.
+- **Single-month gating is unsafe.** The first LightGBM (`churnguard-gbm` v1) won Feb by
+  0.022 AUC and was auto-promoted by a Feb-only gate; it is now demoted to challenger.
+- **Calibration was not applied.** Isotonic fitted on Nov-Jan out-of-time scores and tested
+  on Feb *worsened* both log loss (0.1094 -> 0.1099) and ECE (0.0063 -> 0.0073), so the
+  conditional check left logreg's own probabilities in place.
+
+**March test** (official train_v2 labels; final model trained on all history through Feb,
+1.25M rows, Feb subsampled to an average month):
+
+| logreg, Mar 2017 | ROC AUC | PR AUC | log loss | ECE | lift@10% |
+|---|---|---|---|---|---|
+| all members (958,189) | 0.799 | 0.485 | 0.2427 | 0.039 | 5.7 |
+| excluding early renewers (91.2%) | **0.853** | **0.528** | 0.2006 | 0.028 | **6.3** |
+
+*Early renewers* (paid-through date already past March, 8.8% of the test month) churn at
+16.5% in the official March labels vs 2.3% in February, and no model ranks them better
+than chance (AUC 0.51-0.55): the official labeller saw April events we do not have. They
+are reported separately rather than allowed to dominate the test number.
+
+LightGBM's exact TreeSHAP (`pred_contrib`) gives per-member reason codes for tree models
+(`ChurnModel.reason_codes`); top global drivers in the tuned LightGBM were
+`last_payment_method`, `last_is_auto_renew`, `days_since_last_txn`, `days_to_expiry` and
+`last_list_price`. Logistic-regression reason codes are added with serving (Phase 8).
