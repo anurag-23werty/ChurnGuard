@@ -15,6 +15,7 @@ def settings(tmp_path: Path) -> Settings:
         silver=tmp_path / "silver",
         gold=tmp_path / "gold",
         reports=tmp_path / "reports",
+        models=tmp_path / "models",
     )
     paths.raw.mkdir(parents=True)
     # Tiny blocks / flushes so the tests exercise multi-batch and multi-row-group paths.

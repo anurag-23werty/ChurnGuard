@@ -23,6 +23,7 @@ class Paths:
     silver: Path
     gold: Path
     reports: Path
+    models: Path
 
 
 @dataclass(frozen=True)
@@ -50,12 +51,25 @@ class StorageConfig:
 
 
 @dataclass(frozen=True)
+class ModelingConfig:
+    # Time-ordered splits by label month: train < valid < test, never shuffled.
+    train_months: tuple[str, ...] = ("2016-10", "2016-11", "2016-12", "2017-01")
+    valid_month: str = "2017-02"
+    # Test labels come from the official train_v2 file (our March labels are immature).
+    test_month: str = "2017-03"
+    # Rows sampled from train for in-memory models (None = all decided rows).
+    train_sample: int | None = 1_000_000
+    seed: int = 42
+
+
+@dataclass(frozen=True)
 class Settings:
     paths: Paths
     kaggle_competition: str
     ingest: IngestConfig = field(default_factory=IngestConfig)
     duckdb: DuckDBConfig = field(default_factory=DuckDBConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
+    modeling: ModelingConfig = field(default_factory=ModelingConfig)
 
 
 def _resolve(p: str, root: Path) -> Path:
@@ -72,7 +86,14 @@ def load_settings(config_path: str | Path | None = None, root: Path = PROJECT_RO
         ingest=IngestConfig(**raw.get("ingest", {})),
         duckdb=DuckDBConfig(**raw.get("duckdb", {})),
         storage=StorageConfig(**raw.get("storage", {})),
+        modeling=_modeling(raw.get("modeling", {})),
     )
+
+
+def _modeling(raw: dict) -> ModelingConfig:
+    if "train_months" in raw:
+        raw = {**raw, "train_months": tuple(raw["train_months"])}
+    return ModelingConfig(**raw)
 
 
 @lru_cache(maxsize=1)

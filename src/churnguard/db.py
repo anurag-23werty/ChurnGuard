@@ -16,6 +16,7 @@ def connect(settings: Settings | None = None) -> duckdb.DuckDBPyConnection:
     con.execute(f"SET threads = {settings.duckdb.threads}")
     con.execute(f"SET temp_directory = '{spill}'")
     con.execute("SET preserve_insertion_order = false")
+    con.execute("SET enable_progress_bar = false")
     return con
 
 

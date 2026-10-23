@@ -20,6 +20,7 @@ class Feature:
     dtype: str
     description: str
     window_days: int | None = None
+    categorical: bool = False
 
 
 class RegistryError(ValueError):
@@ -45,6 +46,7 @@ def load_registry(path: Path = REGISTRY_PATH) -> dict[str, Feature]:
                     dtype=f["dtype"],
                     description=f["description"].replace("{w}", str(w)),
                     window_days=w,
+                    categorical=bool(f.get("categorical", False)),
                 )
     return out
 
@@ -52,6 +54,14 @@ def load_registry(path: Path = REGISTRY_PATH) -> dict[str, Feature]:
 @lru_cache(maxsize=1)
 def registry() -> dict[str, Feature]:
     return load_registry()
+
+
+def categorical_features() -> list[str]:
+    return [f.name for f in registry().values() if f.categorical]
+
+
+def numeric_features() -> list[str]:
+    return [f.name for f in registry().values() if not f.categorical]
 
 
 def by_family(family: str) -> list[Feature]:

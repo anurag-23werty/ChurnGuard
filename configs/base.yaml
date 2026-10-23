@@ -5,6 +5,7 @@ paths:
   silver: data/silver
   gold: data/gold
   reports: reports
+  models: models
 
 kaggle:
   competition: kkbox-churn-prediction-challenge
@@ -34,3 +35,11 @@ storage:
   # Cold storage for raw/bronze via rclone (see `make archive` / `make restore`).
   remote: "gdrive:ChurnGuard"
   transfers: 4
+
+modeling:
+  # Time-ordered splits by label month. Never shuffle across months.
+  train_months: ["2016-10", "2016-11", "2016-12", "2017-01"]
+  valid_month: "2017-02"
+  test_month: "2017-03"     # labels from official train_v2 (our March labels are immature)
+  train_sample: 1000000     # in-memory models on a 16 GB laptop; null = all decided rows
+  seed: 42

@@ -5,6 +5,9 @@
 # strictly before it. `source` names the silver table and `window_days` the look-back
 # (null = all history before as_of_date, or a static attribute).
 #
+# `categorical: true` marks codes (city, payment method, ...) that models must not treat as
+# ordered numbers.
+#
 # Expansion: entries with `windows: [...]` expand to one feature per window, named
 # <name>_<w>d. A `{w}` in the description is replaced by the window.
 
@@ -16,11 +19,11 @@ families:
       time-invariant. registration_date can lie after as_of_date (late registrations up to
       2017-04-29), so tenure is NULL in that case instead of negative.
     features:
-      - {name: city, dtype: int, description: City code}
+      - {name: city, dtype: int, categorical: true, description: City code}
       - {name: age, dtype: int, description: Age in years; NULL outside 10-80}
       - {name: age_missing, dtype: int, description: 1 if age is NULL}
-      - {name: gender, dtype: str, description: "male / female / unknown"}
-      - {name: registered_via, dtype: int, description: Registration channel code}
+      - {name: gender, dtype: str, categorical: true, description: "male / female / unknown"}
+      - {name: registered_via, dtype: int, categorical: true, description: Registration channel code}
       - {name: tenure_days, dtype: int, description: Days from registration to as_of_date; NULL if registration is after it}
       - {name: has_member_record, dtype: int, description: 1 if the member exists in members (11% do not)}
 
@@ -34,7 +37,7 @@ families:
       - {name: last_discount, dtype: int, description: List price minus amount paid, last transaction}
       - {name: last_is_auto_renew, dtype: int, description: Auto-renew flag of the last transaction}
       - {name: last_is_cancel, dtype: int, description: 1 if the last transaction was a cancellation}
-      - {name: last_payment_method, dtype: int, description: Payment method of the last transaction}
+      - {name: last_payment_method, dtype: int, categorical: true, description: Payment method of the last transaction}
       - {name: days_since_last_txn, dtype: int, description: Days from the last transaction to as_of_date}
       - {name: days_since_first_txn, dtype: int, description: Days from the first transaction to as_of_date}
       - {name: n_txn, dtype: int, windows: [30, 90, 180, 365], description: "Transactions in the last {w} days"}
