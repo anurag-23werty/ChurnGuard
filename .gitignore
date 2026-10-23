@@ -17,6 +17,7 @@ reports/features/
 reports/baselines/
 reports/gbm/
 reports/decisioning/
+reports/selection/
 
 # Python
 __pycache__/

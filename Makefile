@@ -68,7 +68,7 @@ telco:  ## IBM Telco sanity check of the shared modelling code (expects AUC 0.82
 
 .PHONY: train mlflow-ui
 TRIALS ?=
-train:  ## Tune + calibrate + explain LightGBM, log to MLflow, register, promotion gate
+train:  ## Tune LightGBM on rolling folds (feeds `make select`)
 	$(PY) -m churnguard.modeling.train $(if $(TRIALS),--trials $(TRIALS))
 
 mlflow-ui:  ## Browse runs and the model registry at http://127.0.0.1:5000
@@ -77,3 +77,11 @@ mlflow-ui:  ## Browse runs and the model registry at http://127.0.0.1:5000
 .PHONY: backtest
 backtest:  ## Retention targeting backtest (EV vs risk vs random) with the champion model
 	$(PY) -m churnguard.decisioning.backtest
+
+.PHONY: registry
+registry:  ## List registered model versions and aliases
+	$(PY) -m churnguard.tracking list
+
+.PHONY: select
+select:  ## Compare candidates on every out-of-time month, gate v2, register + promote
+	$(PY) -m churnguard.modeling.select

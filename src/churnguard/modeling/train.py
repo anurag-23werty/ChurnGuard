@@ -1,11 +1,11 @@
-"""Train, calibrate, explain, track and (maybe) promote the LightGBM churn model.
+"""Tune LightGBM and report it on its own (selection and registry live in select.py).
 
   1. Optuna over rolling folds inside the train months (valid/test untouched)
   2. Re-run CV with the best params -> out-of-time OOF scores -> isotonic calibrator
   3. Final fit on all train rows for mean(best_iteration) x 1.1 rounds, no early stopping
   4. Evaluate raw + calibrated on valid (Feb, derived) and test (Mar, official labels)
   5. SHAP global importance + example reason codes
-  6. MLflow: params, metrics, artifacts, registry (challenger) and the promotion gate
+  6. MLflow: tuning params and metrics; tuned params feed `make select`
 
 Usage:
   python -m churnguard.modeling.train                 # full run
@@ -19,7 +19,6 @@ import json
 import sys
 import time
 
-import joblib
 import mlflow
 import numpy as np
 
@@ -28,7 +27,6 @@ from churnguard.config import Settings, get_settings
 from churnguard.db import connect
 from churnguard.features.registry import categorical_features, registry
 from churnguard.logging_utils import get_logger, setup_logging
-from churnguard.modeling.baselines import check_permutation_control
 from churnguard.modeling.dataset import load_split
 from churnguard.modeling.gbm import ChurnModel
 from churnguard.modeling.metrics import evaluate
@@ -97,64 +95,30 @@ def run(settings: Settings, n_trials: int, timeout_s: int | None) -> dict:
 def main(argv: list[str] | None = None) -> int:
     setup_logging()
     settings = get_settings()
-    parser = argparse.ArgumentParser(description="Train the LightGBM churn model")
+    parser = argparse.ArgumentParser(description="Tune the LightGBM churn model")
     parser.add_argument("--trials", type=int, default=settings.modeling.tuning_trials)
     parser.add_argument("--timeout", type=int, default=settings.modeling.tuning_timeout_s)
-    parser.add_argument("--no-promote", action="store_true", help="register as challenger only")
     args = parser.parse_args(argv)
 
     tracking.setup(settings)
-    baseline_path = settings.paths.reports / "baselines" / "metrics.json"
-    if not baseline_path.exists():
-        log.error("run `make baselines` first: the promotion gate compares against it")
-        return 1
-    baselines = json.loads(baseline_path.read_text())
-
-    with mlflow.start_run(run_name="lgbm") as active:
-        run_id = active.info.run_id
+    with mlflow.start_run(run_name="lgbm-tuning") as active:
         out = run(settings, args.trials, args.timeout)
-        report, model = out["report"], out["model"]
-        report["run_id"] = run_id
-
+        report = out["report"]
+        report["run_id"] = active.info.run_id
         mlflow.log_params({**report["tuning"]["best_params"],
                            "num_boost_round": report["cv"]["num_boost_round"],
                            "train_rows": report["rows"]["train"],
-                           "train_months": ",".join(settings.modeling.train_months),
-                           "n_features": len(model.features)})
+                           "train_months": ",".join(settings.modeling.train_months)})
         mlflow.log_metrics({"cv_log_loss": report["cv"]["log_loss"],
-                            **_flat("valid", report["valid"]["calibrated"]),
-                            **_flat("test", report["test"]["calibrated"]),
-                            **_flat("valid_raw", report["valid"]["raw"])})
-
-        model_dir = settings.paths.models / "gbm" / run_id
-        model_dir.mkdir(parents=True, exist_ok=True)
-        joblib.dump(model, model_dir / "model.joblib")
+                            **_flat("valid", report["valid"]["raw"]),
+                            **_flat("test", report["test"]["raw"])})
         reports_dir = settings.paths.reports / "gbm"
         reports_dir.mkdir(parents=True, exist_ok=True)
         (reports_dir / "metrics.json").write_text(json.dumps(report, indent=2, default=str))
         mlflow.log_artifact(str(reports_dir / "metrics.json"))
-
-    version = tracking.log_and_register(settings, model_dir / "model.joblib", run_id,
-                                        out["input_example"])
-    decision = tracking.promotion_decision(
-        report["valid"]["calibrated"], baselines["logreg"]["valid"],
-        tracking.champion_metrics(settings),
-        permutation_passed=_permutation_passed(baselines))
-    log.info("registered %s v%s as challenger; promotion: %s (%s)",
-             settings.mlflow.registered_model, version, decision.promote,
-             "; ".join(decision.reasons))
-    if decision.promote and not args.no_promote:
-        tracking.promote(settings, version)
-        log.info("v%s is now %s", version, tracking.CHAMPION)
+    log.info("tuned params written to %s; run `make select` to compare, register and gate",
+             reports_dir / "metrics.json")
     return 0
-
-
-def _permutation_passed(baselines: dict) -> bool:
-    try:
-        check_permutation_control(baselines)
-    except (AssertionError, KeyError):
-        return False
-    return True
 
 
 if __name__ == "__main__":
