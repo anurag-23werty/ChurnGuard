@@ -114,7 +114,8 @@ def main(argv: list[str] | None = None) -> int:
     helps, cal_detail = calibration_helps(oof[chosen])
     X_fin, y_fin = _final_training_set(train, valid, m.seed)
     model = candidates[chosen]().fit(X_fin, y_fin)
-    baseline_model = candidates[BASELINE]().fit(X_fin, y_fin)
+    baseline_model = (None if chosen == BASELINE
+                      else candidates[BASELINE]().fit(X_fin, y_fin))
     if helps:
         iso = IsotonicRegression(out_of_bounds="clip", y_min=1e-6, y_max=1 - 1e-6)
         model = CalibratedModel(model, iso.fit(oof[chosen].p, oof[chosen].y))
@@ -127,7 +128,8 @@ def main(argv: list[str] | None = None) -> int:
         "selected": chosen, "calibration": {"applied": helps, **cal_detail},
         "final_training_rows": len(y_fin),
         "test": {chosen: _test_report(model, test),
-                 f"{BASELINE} (same training data)": _test_report(baseline_model, test)},
+                 **({f"{BASELINE} (same training data)": _test_report(baseline_model, test)}
+                    if baseline_model is not None else {})},
     }
     out = settings.paths.reports / "selection"
     out.mkdir(parents=True, exist_ok=True)
