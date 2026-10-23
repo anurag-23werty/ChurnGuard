@@ -105,3 +105,8 @@ docker-run:  ## Run the API image with data, registry DB and artifacts mounted
 	  -v $(CURDIR)/mlruns.db:/app/mlruns.db \
 	  -v $(CURDIR)/mlartifacts:$(CURDIR)/mlartifacts:ro \
 	  churnguard:latest
+
+.PHONY: requirements
+requirements:  ## Regenerate pinned requirements*.txt from uv.lock (run after uv add/remove)
+	uv export --format requirements-txt --no-hashes --no-dev --frozen -o requirements.txt
+	uv export --format requirements-txt --no-hashes --only-dev --frozen -o requirements-dev.txt

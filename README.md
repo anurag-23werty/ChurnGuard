@@ -20,6 +20,24 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [ ] Phase 9: monitoring
 - [ ] Phase 10: UI & CI
 
+## Install
+
+Python 3.11+ (developed on 3.13). Either tool works; both use the same pinned versions.
+
+```bash
+# uv (recommended)
+uv sync
+
+# or plain pip
+python3.13 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt   # runtime + tests/lint
+pytest                                                     # 99 tests, ~15 s
+```
+
+`requirements*.txt` are generated from `uv.lock` (`make requirements`); don't edit by hand.
+System tools, not pip packages: `brew install sevenzip` (ingest), `brew install rclone`
+(cold storage), Docker Desktop (container). Kaggle API token in `~/.kaggle/access_token`.
+
 ## Quickstart
 
 ```bash
