@@ -35,3 +35,19 @@ make ingest MONTHS=2016-10:2017-03   # or a smaller window on a constrained mach
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
 reconciling rows read vs. written. DQ reports land in `reports/dq/<table>.json`.
+
+## Cold storage
+
+Raw archives and bronze are cold data: read rarely, large. They live on an rclone remote
+(Google Drive by default, `storage.remote` in `configs/base.yaml`); silver/gold stay local.
+
+```bash
+make archive LAYER=raw              # upload, verify size+hash with rclone check, free local disk
+make restore LAYER=bronze/user_logs # pull back on demand
+make storage-status                 # what is local vs archived
+```
+
+One-time setup: `rclone config` a Drive remote named `gdrive` with **your own OAuth client ID**
+and scope `drive.file` (files are only visible to the client ID that uploaded them, so never
+upload with rclone's shared client). The OAuth app stays in Google "Testing" mode, so tokens
+expire every 7 days: `rclone config reconnect gdrive:`.

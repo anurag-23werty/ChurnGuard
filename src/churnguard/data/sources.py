@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import BinaryIO
 
+from churnguard.storage import archived_hint
+
 _SEVEN_ZIP_BINARIES = ("7zz", "7z", "7za")
 
 
@@ -31,7 +33,8 @@ def resolve_raw_file(raw_dir: Path, archive: str) -> Path:
     csv_path = raw_dir / archive.removesuffix(".7z")
     if csv_path.exists():
         return csv_path
-    raise FileNotFoundError(f"neither {archive_path} nor {csv_path} exists (run `make download`)")
+    fix = archived_hint(raw_dir) or "make download"
+    raise FileNotFoundError(f"neither {archive_path} nor {csv_path} exists (run `{fix}`)")
 
 
 @contextmanager

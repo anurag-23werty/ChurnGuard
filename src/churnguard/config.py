@@ -43,11 +43,19 @@ class DuckDBConfig:
 
 
 @dataclass(frozen=True)
+class StorageConfig:
+    # rclone remote + base folder for cold storage, e.g. "gdrive:ChurnGuard".
+    remote: str = "gdrive:ChurnGuard"
+    transfers: int = 4
+
+
+@dataclass(frozen=True)
 class Settings:
     paths: Paths
     kaggle_competition: str
     ingest: IngestConfig = field(default_factory=IngestConfig)
     duckdb: DuckDBConfig = field(default_factory=DuckDBConfig)
+    storage: StorageConfig = field(default_factory=StorageConfig)
 
 
 def _resolve(p: str, root: Path) -> Path:
@@ -63,6 +71,7 @@ def load_settings(config_path: str | Path | None = None, root: Path = PROJECT_RO
         kaggle_competition=raw["kaggle"]["competition"],
         ingest=IngestConfig(**raw.get("ingest", {})),
         duckdb=DuckDBConfig(**raw.get("duckdb", {})),
+        storage=StorageConfig(**raw.get("storage", {})),
     )
 
 

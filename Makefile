@@ -29,3 +29,14 @@ dq:  ## Data-quality report on bronze tables (exit 1 on FAIL)
 	$(PY) -m churnguard.data.dq
 
 ingest: bronze dq  ## Phase 1 end-to-end: raw -> bronze -> DQ gate
+
+.PHONY: archive restore storage-status
+LAYER ?=
+archive:  ## Upload a data layer to cold storage, verify, free local disk: make archive LAYER=raw
+	$(PY) -m churnguard.storage archive $(LAYER)
+
+restore:  ## Pull an archived layer back: make restore LAYER=bronze/user_logs
+	$(PY) -m churnguard.storage restore $(LAYER)
+
+storage-status:  ## Local vs archived layers and free disk
+	$(PY) -m churnguard.storage status

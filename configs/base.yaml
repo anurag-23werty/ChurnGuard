@@ -28,3 +28,8 @@ ingest:
 duckdb:
   memory_limit: 8GB
   threads: 6
+
+storage:
+  # Cold storage for raw/bronze via rclone (see `make archive` / `make restore`).
+  remote: "gdrive:ChurnGuard"
+  transfers: 4
