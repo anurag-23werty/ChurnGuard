@@ -23,7 +23,7 @@ This document is the reference design. Each build phase below maps to one or mor
 | Promotion | best validation month | gate v2 over every out-of-time month (mean + worst) | a Feb-only gate promoted a fragile model |
 | Drift | Evidently | own PSI (~30 lines) | no heavy dependency; model's view of inputs |
 | Orchestration | Prefect | Makefile (`make pipeline`) | enough for monthly batch on one machine |
-| UI | Streamlit | Streamlit console (campaign, budget, monitoring, lookup) | as planned |
+| UI | Streamlit | Streamlit console, plus a React web console (`web/`) on read-only `/api` endpoints | Streamlit for analysts; the web console for business users, reading the same artifacts |
 
 Findings that changed the design along the way:
 

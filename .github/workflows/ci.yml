@@ -42,6 +42,25 @@ jobs:
       - name: Fail if the exported files changed
         run: git diff --exit-code -- requirements.txt requirements-dev.txt
 
+  web:
+    name: web console typecheck, tests, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install (fails if package-lock.json is stale)
+        run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
   docker:
     name: docker image builds
     runs-on: ubuntu-latest

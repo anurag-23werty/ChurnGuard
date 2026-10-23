@@ -47,12 +47,12 @@ uv sync
 # or plain pip
 python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt   # runtime + tests/lint
-pytest                                                     # 99 tests, ~15 s
+pytest                                                     # 135 tests, ~20 s
 ```
 
 `requirements*.txt` are generated from `uv.lock` (`make requirements`); don't edit by hand.
 System tools, not pip packages: `brew install sevenzip` (ingest), `brew install rclone`
-(cold storage), Docker Desktop (container). Kaggle API token in `~/.kaggle/access_token`.
+(cold storage), Docker Desktop (container), Node.js 20.19+ (web console only). Kaggle API token in `~/.kaggle/access_token`.
 
 ## Quickstart
 
@@ -82,6 +82,7 @@ make docker-build docker-run     # same API in a container
 make monitor                     # latest scored month: DQ, drift, matured performance, decision
 make monitor-replay              # would monitoring have flagged past months?
 make console                     # retention console on http://localhost:8501
+make web-install && make web     # React web console on http://localhost:5173 (with make serve)
 make check                       # exactly what CI runs
 make pipeline                    # raw archives -> monitored scores, end to end
 make help                        # every target
@@ -324,6 +325,11 @@ contribution), model name/version/type, `scored_at`, plus a `_manifest.json`.
   silver as of the date and scores them (~90 ms, thanks to member-sorted silver logs)
 - `POST /score`: caller-supplied features; the request schema is generated from the
   feature registry, so a missing or mistyped feature is a 422
+- `GET /api/...`: read-only data for the web console (`serving/console_api.py`): months,
+  overview, paginated/filtered members, member detail with its feature snapshot, history,
+  registry, retention plan under a budget, contact-list CSV export, and the selection,
+  baseline, backtest and monitoring reports. Nothing is recomputed; a missing artifact is a
+  404 naming the make target that creates it
 
 **Parity is tested, not assumed:** `tests/test_serving.py` scores members through the API
 one by one and requires p_churn, EV, contact and reasons to equal the batch rows exactly
@@ -403,6 +409,34 @@ The data layer (`console/data.py`) is unit-tested and the app itself is rendered
 in CI (`streamlit.testing.v1.AppTest`); against the real April scores it renders in under a
 second.
 
+## Web console
+
+A React + TypeScript app in `web/` (Vite, React Router, TanStack Query; charts are
+hand-written SVG, no chart library). It reads everything through the API above, so it shows
+exactly what the pipeline produced and never invents a number.
+
+```bash
+make serve                        # API on :8000 (terminal 1)
+make web-install                  # once: npm ci from web/package-lock.json
+make web                          # http://localhost:5173 (terminal 2); Vite proxies /api, /health, /members
+make web-check                    # typecheck + unit tests + production build (what CI runs)
+```
+
+| Page | What it shows | Operations |
+|---|---|---|
+| Overview | members scored, predicted churn, revenue at risk, contact list, model AUC; risk tiers, revenue by tier, monthly trend, backtest, top reasons, health | tier drill-down into the explorer |
+| Customers | all scored members, server-side paginated | search (ID prefix or msno), tier filter, contact-only, sortable columns, page size, CSV export with confirmation |
+| Customer detail | probability gauge, EV breakdown, recommended play, reason codes, all 52 model inputs | live re-score through the API (checks batch parity), copy msno |
+| Predictions | batch summary, score histogram (log/linear), registry versions, scoring history | score any member as of any date |
+| Retention | campaign planner under a budget, save-rate sensitivity, EV vs risk vs random curves | budget what-if, export that list |
+| Model performance | per-month metrics for every candidate, gate v2 verdicts, holdout test, calibration, baselines, confusion matrix at the top-10% cut-off | metric and candidate toggles, test-population switch |
+| Monitoring | ok/warn/retrain, data quality, score and feature drift, label maturity, drift replay | report month, hide expected drift |
+
+What the API does not provide is shown as unavailable rather than filled in: request
+latency and error rates (no metrics endpoint) and uplift estimates (no treatment/control
+data). Risk tiers (<5%, 5-20%, 20-50%, >=50%) are display bands; contact decisions stay
+expected-value based.
+
 ## CI
 
 `.github/workflows/ci.yml` on every push and PR:
@@ -411,6 +445,8 @@ second.
   and rclone installed. Tests use synthetic fixtures only, so CI needs none of the 30 GB
   dataset; a clean clone with no `data/` or registry passes.
 - **requirements:** `requirements*.txt` must equal a fresh export of `uv.lock`
+- **web:** `npm ci` (fails on a stale lock), typecheck, unit tests and production build of
+  the web console
 - **docker:** the image builds and imports the API and LightGBM (catches missing `libgomp`)
 
 `make check` runs the same lint + test step locally.

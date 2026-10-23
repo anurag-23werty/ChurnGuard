@@ -133,3 +133,20 @@ monitor-replay:  ## Replay drift monitoring over history (each month vs the 2 be
 .PHONY: console
 console:  ## Retention console (Streamlit) on http://localhost:8501
 	uv run streamlit run src/churnguard/console/app.py
+
+# React console in web/. It talks to the API (`make serve` on :8000) through Vite's proxy.
+.PHONY: web-install web web-build web-preview web-check
+web-install:  ## Install the web console's pinned npm packages (web/package-lock.json)
+	cd web && npm ci
+
+web:  ## Web console dev server on http://localhost:5173 (run `make serve` alongside)
+	cd web && npm run dev
+
+web-build:  ## Typecheck + production build of the web console into web/dist
+	cd web && npm run build
+
+web-preview: web-build  ## Serve the production build on http://localhost:4173 (API on :8000)
+	cd web && npm run preview
+
+web-check:  ## Exactly what CI runs for the web console: typecheck, unit tests, build
+	cd web && npm run typecheck && npm test && npm run build
