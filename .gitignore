@@ -1,0 +1,26 @@
+# Data: never commit (multi-GB)
+data/
+*.7z
+*.csv
+*.parquet
+*.duckdb
+*.duckdb.wal
+
+# ML artifacts
+mlruns/
+mlartifacts/
+models/
+reports/drift/
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Env / OS
+.env
+.DS_Store
