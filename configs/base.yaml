@@ -60,3 +60,13 @@ retention:
   contact_cost: 2.0         # NTD per contacted member
   incentive_months: 1.0     # free months offered to each contacted member
   budget: null              # NTD per campaign; null = every positive-EV member
+
+monitoring:
+  reference_sample: 200000     # rows from the champion's training months
+  score_psi_warn: 0.10
+  score_psi_retrain: 0.25
+  major_features_retrain: 3    # features with PSI > 0.25
+  auc_drop_retrain: 0.03       # matured AUC vs champion out-of-time mean AUC
+  ece_retrain: 0.02
+  volume_ratio: [0.5, 2.0]     # scored population vs reference monthly average
+  null_jump_warn: 0.10

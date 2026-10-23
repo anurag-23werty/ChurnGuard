@@ -85,6 +85,18 @@ class RetentionConfig:
 
 
 @dataclass(frozen=True)
+class MonitoringConfig:
+    reference_sample: int = 200_000  # rows sampled from the reference months
+    score_psi_warn: float = 0.10
+    score_psi_retrain: float = 0.25
+    major_features_retrain: int = 3  # features with PSI > 0.25
+    auc_drop_retrain: float = 0.03  # vs the champion's out-of-time mean AUC
+    ece_retrain: float = 0.02
+    volume_ratio: tuple[float, float] = (0.5, 2.0)
+    null_jump_warn: float = 0.10
+
+
+@dataclass(frozen=True)
 class Settings:
     paths: Paths
     kaggle_competition: str
@@ -94,6 +106,7 @@ class Settings:
     modeling: ModelingConfig = field(default_factory=ModelingConfig)
     mlflow: MLflowConfig = field(default_factory=MLflowConfig)
     retention: RetentionConfig = field(default_factory=RetentionConfig)
+    monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
 
 
 def _resolve(p: str, root: Path) -> Path:
@@ -113,7 +126,14 @@ def load_settings(config_path: str | Path | None = None, root: Path = PROJECT_RO
         modeling=_modeling(raw.get("modeling", {})),
         mlflow=MLflowConfig(**raw.get("mlflow", {})),
         retention=RetentionConfig(**raw.get("retention", {})),
+        monitoring=_monitoring(raw.get("monitoring", {})),
     )
+
+
+def _monitoring(raw: dict) -> MonitoringConfig:
+    if "volume_ratio" in raw:
+        raw = {**raw, "volume_ratio": tuple(raw["volume_ratio"])}
+    return MonitoringConfig(**raw)
 
 
 def _modeling(raw: dict) -> ModelingConfig:

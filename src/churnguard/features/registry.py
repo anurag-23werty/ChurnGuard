@@ -21,6 +21,7 @@ class Feature:
     description: str
     window_days: int | None = None
     categorical: bool = False
+    expected_drift: bool = False
 
 
 class RegistryError(ValueError):
@@ -47,6 +48,7 @@ def load_registry(path: Path = REGISTRY_PATH) -> dict[str, Feature]:
                     description=f["description"].replace("{w}", str(w)),
                     window_days=w,
                     categorical=bool(f.get("categorical", False)),
+                    expected_drift=bool(f.get("expected_drift", False)),
                 )
     return out
 
@@ -58,6 +60,10 @@ def registry() -> dict[str, Feature]:
 
 def categorical_features() -> list[str]:
     return [f.name for f in registry().values() if f.categorical]
+
+
+def expected_drift_features() -> set[str]:
+    return {f.name for f in registry().values() if f.expected_drift}
 
 
 def numeric_features() -> list[str]:

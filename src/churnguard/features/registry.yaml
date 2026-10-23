@@ -5,6 +5,9 @@
 # strictly before it. `source` names the silver table and `window_days` the look-back
 # (null = all history before as_of_date, or a static attribute).
 #
+# `expected_drift: true` marks features that drift by construction (e.g. clocked against the
+# dataset start, 2015-01-01): still measured and reported, but they do not raise alerts.
+#
 # `categorical: true` marks codes (city, payment method, ...) that models must not treat as
 # ordered numbers.
 #
@@ -39,7 +42,7 @@ families:
       - {name: last_is_cancel, dtype: int, description: 1 if the last transaction was a cancellation}
       - {name: last_payment_method, dtype: int, categorical: true, description: Payment method of the last transaction}
       - {name: days_since_last_txn, dtype: int, description: Days from the last transaction to as_of_date}
-      - {name: days_since_first_txn, dtype: int, description: Days from the first transaction to as_of_date}
+      - {name: days_since_first_txn, dtype: int, expected_drift: true, description: Days from the first transaction to as_of_date}
       - {name: n_txn, dtype: int, windows: [30, 90, 180, 365], description: "Transactions in the last {w} days"}
       - {name: n_cancel, dtype: int, windows: [30, 90, 180, 365], description: "Cancellations in the last {w} days"}
       - {name: amount_paid, dtype: int, windows: [90, 365], description: "Total paid in the last {w} days"}
