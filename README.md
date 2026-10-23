@@ -16,7 +16,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [x] Phase 5: baselines
 - [x] Phase 6: model selection (LightGBM, blends, calibration, SHAP, MLflow registry)
 - [x] Phase 7: retention decisioning (expected-value targeting + backtest)
-- [ ] Phase 8: serving (batch + FastAPI)
+- [x] Phase 8: serving (batch scorer, FastAPI, Docker)
 - [ ] Phase 9: monitoring
 - [ ] Phase 10: UI & CI
 
@@ -42,6 +42,9 @@ make select                      # all candidates x all out-of-time months, gate
 make registry                    # registered versions + aliases (champion/challenger)
 make mlflow-ui                   # browse runs at http://127.0.0.1:5000
 make backtest                    # EV vs risk vs random targeting on Feb, save-rate sensitivity
+make score                       # batch-score everyone due next month with the champion
+make serve                        # scoring API on :8000 (docs at /docs)
+make docker-build docker-run     # same API in a container
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
@@ -250,3 +253,47 @@ first real campaign must keep a **randomised holdout** of positive-EV members (n
 contacted) to measure it; until then the money figures are scenarios, while the
 *ranking* holds: EV >= risk > random at every save rate (10/20/30%) and contact
 fraction (1-30%) tested, 18 of 18 cases.
+
+## Serving
+
+One scoring path, two entry points (`serving/scoring.py`): population ->
+`feature_sql` (the training feature code) -> `prepare_features` (the training dtypes) ->
+champion model (`models:/churnguard@champion`) -> expected value + contact decision ->
+top-3 reason codes. Population and paid-through date come from the same functions the
+label spine uses (`due_population_sql`, `paid_through_sql`); the refactor reproduced the
+existing spine with 0 differing rows over 2.97M.
+
+**Batch** (`make score`): everyone due next month. April 2017, real data:
+
+| | |
+|---|---|
+| members scored | 1,012,577 in 19 s (2.9 GB peak) |
+| vs Kaggle's April test population | 100% recall, 89.6% precision |
+| contact (positive EV) | 13,893 (1.4%), lowest contacted p = 0.579 = the 0.58 break-even |
+| expected net value (20% save rate) | +720k NTD |
+| top reason among contacted | `last_is_cancel` (84%), `last_is_auto_renew` (16%) |
+
+Output `data/gold/scores/score_month=YYYY-MM/data.parquet`: `ev_rank`, `msno` (for the
+CRM), `p_churn`, `monthly_revenue`, `clv`, `ev`, `contact`, `reason_1..3` (+ log-odds
+contribution), model name/version/type, `scored_at`, plus a `_manifest.json`.
+
+**API** (`make serve`, OpenAPI at `/docs`):
+
+- `GET /health`: live model name, version, type, run id
+- `GET /members/{member_id}/score?as_of=2017-04-01`: builds that member's features from
+  silver as of the date and scores them (~90 ms, thanks to member-sorted silver logs)
+- `POST /score`: caller-supplied features; the request schema is generated from the
+  feature registry, so a missing or mistyped feature is a 422
+
+**Parity is tested, not assumed:** `tests/test_serving.py` scores members through the API
+one by one and requires p_churn, EV, contact and reasons to equal the batch rows exactly
+(including an early renewer). On real data the API returned p = 0.99458 / EV 130.743 for
+April's top-ranked member, identical to the batch file.
+
+Reason codes: TreeSHAP for LightGBM; for logistic regression, coefficient x standardised
+value summed back to each input feature (one-hot levels and missing indicators included),
+which adds up exactly to the model's logit (tested).
+
+**Docker:** `Dockerfile` runs the API as a non-root user with a healthcheck; data, the
+registry DB and artifacts are mounted. MLflow stores artifact locations as absolute host
+paths (`file:///.../mlartifacts`), so `make docker-run` mounts them at the same path.
