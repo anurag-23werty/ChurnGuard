@@ -11,6 +11,7 @@ dependencies = [
     "pandera>=0.20",
     "pyyaml>=6",
     "kaggle>=1.6",
+    "scikit-learn>=1.5",
 ]
 
 [dependency-groups]
