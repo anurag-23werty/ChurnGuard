@@ -3,6 +3,7 @@
   GET  /health                          live model name/version/type
   GET  /members/{member_id}/score       features built from silver as of a date, scored
   POST /score                           score caller-supplied registry features
+  GET  /api/...                         read-only console data (serving.console_api)
 
 Both scoring routes go through serving.scoring, the same code as the batch job, so a
 member scored here and in the batch file gets the same number (tested).
@@ -25,6 +26,7 @@ from churnguard import tracking
 from churnguard.config import Settings, get_settings
 from churnguard.db import connect
 from churnguard.features.registry import registry
+from churnguard.serving.console_api import build_router
 from churnguard.serving.scoring import (
     N_REASONS,
     features_for,
@@ -78,10 +80,11 @@ def _to_response(row: pd.Series, info: dict) -> ScoreResponse:
 
 
 def create_app(settings: Settings | None = None, model=None,
-               model_info: dict | None = None) -> FastAPI:
-    """Model and settings are injectable so tests run without a registry."""
+               model_info: dict | None = None, registry_fn=None) -> FastAPI:
+    """Model, settings and the registry lookup are injectable so tests run without MLflow."""
     settings = settings or get_settings()
     app = FastAPI(title="ChurnGuard", version="0.1.0")
+    app.include_router(build_router(settings, registry_fn))
 
     @lru_cache(maxsize=1)
     def _model():
