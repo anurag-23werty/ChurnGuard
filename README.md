@@ -15,7 +15,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [x] Phase 4: point-in-time features
 - [x] Phase 5: baselines
 - [x] Phase 6: model selection (LightGBM, blends, calibration, SHAP, MLflow registry)
-- [ ] Phase 7: retention decisioning
+- [x] Phase 7: retention decisioning (expected-value targeting + backtest)
 - [ ] Phase 8: serving (batch + FastAPI)
 - [ ] Phase 9: monitoring
 - [ ] Phase 10: UI & CI
@@ -41,6 +41,7 @@ make train                       # tune LightGBM on rolling folds inside train m
 make select                      # all candidates x all out-of-time months, gate, register
 make registry                    # registered versions + aliases (champion/challenger)
 make mlflow-ui                   # browse runs at http://127.0.0.1:5000
+make backtest                    # EV vs risk vs random targeting on Feb, save-rate sensitivity
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
@@ -206,3 +207,46 @@ LightGBM's exact TreeSHAP (`pred_contrib`) gives per-member reason codes for tre
 (`ChurnModel.reason_codes`); top global drivers in the tuned LightGBM were
 `last_payment_method`, `last_is_auto_renew`, `days_since_last_txn`, `days_to_expiry` and
 `last_list_price`. Logistic-regression reason codes are added with serving (Phase 8).
+
+## Retention decisioning
+
+Contacting member *i* is worth **EV = p(churn) x save rate x CLV - cost**, where CLV is
+plan-normalised monthly revenue over a 12-month horizon (discounted by 6% baseline monthly
+churn, 9.3 expected months) and cost = 2 NTD contact + one free month. Members with EV <= 0
+are never contacted; with a budget, selection is greedy by EV/cost
+(`decisioning/retention.py`, parameters in `configs/base.yaml: retention`).
+
+**Backtest** (`make backtest`): champion model scores Feb 2017 (979,801 members, 4.7%
+churn); realised value uses the members' actual outcomes, assuming a 20% save rate.
+
+| contact top x% | by expected value | by churn risk | random |
+|---|---|---|---|
+| 1% | **+801k NTD** | +647k | -1.2M |
+| 2% | **+969k** | +963k | -2.4M |
+| 5% | -466k | -638k | -5.9M |
+| 10% | -5.2M | -6.0M | -11.8M |
+| 30% | -24.6M | -31.0M | -35.3M |
+
+- **The EV rule sizes the campaign by itself.** Contacting only positive-EV members selects
+  1.4% (13,865) and realises **+976k NTD**, slightly more than the best fixed cut-off found
+  in hindsight (2%, +969k). That only works because the probabilities are calibrated
+  (ECE 0.006): a miscalibrated model would pick the wrong number of members.
+- **Ranking by value beats ranking by risk** where it matters: +24% at 1%, and it loses
+  less past the optimum (-5.2M vs -6.0M at 10%). Risk ranking alone spends offers on
+  members who pay little or nothing.
+- **A free month is an expensive offer.** Beyond ~2% of members the incentive cost
+  exceeds the churn saved; contacting everyone would lose 117M NTD.
+
+**Save-rate sensitivity: the assumption decides whether to run a campaign at all.**
+
+| assumed save rate | break-even churn risk (149 NTD/month) | members contacted | realised net value |
+|---|---|---|---|
+| 10% | 1.16 (impossible) | 0 | 0: no campaign |
+| 20% | 0.58 | 13,865 (1.4%) | +976k NTD |
+| 30% | 0.39 | 24,704 (2.5%) | +2.84M NTD |
+
+KKBox contains no campaign data, so the save rate is an assumption, not an estimate. The
+first real campaign must keep a **randomised holdout** of positive-EV members (not
+contacted) to measure it; until then the money figures are scenarios, while the
+*ranking* holds: EV >= risk > random at every save rate (10/20/30%) and contact
+fraction (1-30%) tested, 18 of 18 cases.
