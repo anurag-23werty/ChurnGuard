@@ -9,7 +9,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 ## Status
 
 - [x] Phase 0: architecture
-- [ ] Phase 1: ingestion (raw → bronze Parquet)
+- [x] Phase 1: ingestion (raw → bronze Parquet)
 - [ ] Phase 2: cleaning (silver)
 - [ ] Phase 3: label spine
 - [ ] Phase 4: point-in-time features
@@ -19,3 +19,19 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [ ] Phase 8: serving (batch + FastAPI)
 - [ ] Phase 9: monitoring
 - [ ] Phase 10: UI & CI
+
+## Quickstart
+
+```bash
+brew install sevenzip            # streams .7z archives without extracting to disk
+uv sync                          # create .venv from uv.lock
+make test
+
+# Kaggle: put kaggle.json in ~/.kaggle and accept the competition rules first
+make download                    # data/raw/*.7z
+make ingest                      # raw -> bronze Parquet + DQ report
+make ingest MONTHS=2016-10:2017-03   # or a smaller window on a constrained machine
+```
+
+Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
+reconciling rows read vs. written. DQ reports land in `reports/dq/<table>.json`.
