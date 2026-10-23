@@ -85,3 +85,34 @@ def test_demote_removes_alias(settings, tmp_path):
     assert tracking.champion_metrics(s) is None
     assert tracking.demote("m2") is False
     assert mlflow.MlflowClient().get_model_version("m2", v).tags["model_type"] == "lgbm"
+
+
+def test_load_champion_from_read_only_artifact_store(settings, tmp_path):
+    """Regression: the Docker container mounts mlartifacts read-only, and loading
+    models:/...@champion used to write registered_model_meta into it (EROFS -> HTTP 500)."""
+    import os
+    import stat
+
+    s = replace(settings, mlflow=MLflowConfig(tracking_uri=f"sqlite:///{tmp_path}/mlflow.db",
+                                              experiment="ro", registered_model="ro"))
+    artifacts = tmp_path / "artifacts"
+    tracking.setup(s, artifact_root=artifacts)
+    X = pd.DataFrame({"a": np.arange(200, dtype="float32"),
+                      "c": pd.Series(["x", "y"] * 100).astype("string")})
+    model = ChurnModel(["a", "c"], ["c"], {"num_leaves": 4}).fit(
+        X, (X.a > 100).astype("int8"), num_boost_round=5)
+    joblib.dump(model, tmp_path / "m.joblib")
+    with mlflow.start_run() as run:
+        pass
+    tracking.promote(s, tracking.log_and_register(s, tmp_path / "m.joblib", run.info.run_id,
+                                                  X.head(2)))
+    paths = [artifacts, *artifacts.rglob("*")]
+    for p in paths:
+        p.chmod(p.stat().st_mode & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
+    try:
+        loaded = tracking.load_champion(s)
+        assert loaded.predict_proba(X.head(3)) == pytest.approx(model.predict_proba(X.head(3)))
+        assert not any(p.name == "registered_model_meta" for p in artifacts.rglob("*"))
+    finally:
+        for p in paths:
+            os.chmod(p, p.stat().st_mode | stat.S_IWUSR)

@@ -9,6 +9,12 @@ ENV UV_COMPILE_BYTECODE=1 \
     MLFLOW_DISABLE_AGENT_HINT=1 \
     PYTHONUNBUFFERED=1
 
+# LightGBM needs the OpenMP runtime, which python:*-slim does not ship. Required even with a
+# logreg champion: unpickling imports the candidates module, which imports lightgbm.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Dependencies first (cached layer), then the project itself.

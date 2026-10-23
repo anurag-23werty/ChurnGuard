@@ -12,6 +12,7 @@ the current champion on held-out data and be well calibrated.
 from __future__ import annotations
 
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -136,10 +137,16 @@ def champion_info(settings: Settings, alias: str = CHAMPION) -> dict:
 
 
 def load_champion(settings: Settings, alias: str = CHAMPION):
-    """The ChurnModel behind a registry alias, loaded exactly as serving loads it."""
+    """The model behind a registry alias, loaded exactly as serving loads it.
+
+    Loaded via a private copy (dst_path): with a local artifact store MLflow otherwise
+    writes `registered_model_meta` into the artifact folder in place, which fails on a
+    read-only mount (the Docker container) and mutates registry artifacts everywhere else.
+    """
     mlflow.set_tracking_uri(tracking_uri(settings))
     uri = f"models:/{settings.mlflow.registered_model}@{alias}"
-    return mlflow.pyfunc.load_model(uri).unwrap_python_model().model
+    dst = tempfile.mkdtemp(prefix="churnguard-model-")
+    return mlflow.pyfunc.load_model(uri, dst_path=dst).unwrap_python_model().model
 
 
 def demote(model: str, alias: str = CHAMPION) -> bool:
