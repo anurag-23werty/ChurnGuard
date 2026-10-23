@@ -49,7 +49,7 @@ modeling:
 mlflow:
   tracking_uri: "sqlite:///mlruns.db"   # experiments + model registry; artifacts in mlartifacts/
   experiment: churnguard
-  registered_model: churnguard-gbm
+  registered_model: churnguard     # any model type; see the model_type version tag
 
 retention:
   # EV_i = p_i * save_rate * CLV_i - cost_i. save_rate is an ASSUMPTION (KKBox has no campaign

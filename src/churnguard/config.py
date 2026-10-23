@@ -69,7 +69,7 @@ class MLflowConfig:
     # Relative sqlite paths resolve against the project root.
     tracking_uri: str = "sqlite:///mlruns.db"
     experiment: str = "churnguard"
-    registered_model: str = "churnguard-gbm"
+    registered_model: str = "churnguard"  # model-agnostic; type recorded as a version tag
 
 
 @dataclass(frozen=True)
