@@ -4,7 +4,23 @@ End-to-end churn prediction and retention platform on the KKBox music-subscripti
 (~400M listening-log rows): out-of-core data engineering, point-in-time features,
 a calibrated and explainable model, value-based retention targeting, serving, and monitoring.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
+![ci](https://github.com/anurag-23werty/ChurnGuard/actions/workflows/ci.yml/badge.svg)
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and what changed while
+building it.
+
+## Results at a glance
+
+| | |
+|---|---|
+| Data | 410M raw rows ingested in ~4.5 min; 155.5M-row log window; silver build 46 s |
+| Labels | official KKBox labeller ported to SQL; 99% population match, 96-98% label agreement |
+| Features | 52 point-in-time features; leakage tests verified by mutating the guards |
+| Champion | logistic regression: mean out-of-time AUC 0.896, worst month 0.832; March test 0.853 AUC excl. early renewers |
+| Decisioning | EV targeting contacts 1.4% for +976k NTD on the Feb backtest (20% save-rate assumption) |
+| Serving | April: 1,012,577 members in 19 s; API ~90 ms, identical to batch; Docker healthy |
+| Monitoring | April ok (score PSI 0.008); replay shows Dec 2016 was concept drift, caught only by delayed labels |
+| Quality | 129 tests, warnings are errors, CI on every push |
 
 ## Status
 
@@ -18,7 +34,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [x] Phase 7: retention decisioning (expected-value targeting + backtest)
 - [x] Phase 8: serving (batch scorer, FastAPI, Docker)
 - [x] Phase 9: monitoring (drift, delayed-label performance, retrain rule)
-- [ ] Phase 10: UI & CI
+- [x] Phase 10: retention console, CI, `make pipeline`
 
 ## Install
 
@@ -65,6 +81,10 @@ make serve                        # scoring API on :8000 (docs at /docs)
 make docker-build docker-run     # same API in a container
 make monitor                     # latest scored month: DQ, drift, matured performance, decision
 make monitor-replay              # would monitoring have flagged past months?
+make console                     # retention console on http://localhost:8501
+make check                       # exactly what CI runs
+make pipeline                    # raw archives -> monitored scores, end to end
+make help                        # every target
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
@@ -366,3 +386,31 @@ Two bugs the monitor surfaced, both fixed:
   columns read back as float64 (`"13.0"`), pandas-written ones as Int32 (`"13"`), which made
   city/registered_via PSI ~15 and would have mis-encoded categories in performance replays.
   `prepare_features` now canonicalises codes; served April scores are unchanged (max diff 0).
+
+## Retention console
+
+`make console` (Streamlit, http://localhost:8501), reading the batch scores and monitoring
+reports:
+
+- **Campaign:** members due, contacts, expected net value, mean risk; the contact list with
+  top reasons and a CSV export for the CRM
+- **Budget:** re-run the EV selection under a budget; cumulative-value curve showing where
+  the next offer costs more than it saves
+- **Monitoring:** ok / warn / retrain banner, score PSI, volume, feature drift, label maturity
+- **Member lookup:** by msno or member id
+
+The data layer (`console/data.py`) is unit-tested and the app itself is rendered headless
+in CI (`streamlit.testing.v1.AppTest`); against the real April scores it renders in under a
+second.
+
+## CI
+
+`.github/workflows/ci.yml` on every push and PR:
+
+- **lint + tests:** `uv sync --frozen` (fails on a stale lock), ruff, all tests with 7-Zip
+  and rclone installed. Tests use synthetic fixtures only, so CI needs none of the 30 GB
+  dataset; a clean clone with no `data/` or registry passes.
+- **requirements:** `requirements*.txt` must equal a fresh export of `uv.lock`
+- **docker:** the image builds and imports the API and LightGBM (catches missing `libgomp`)
+
+`make check` runs the same lint + test step locally.

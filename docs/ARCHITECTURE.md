@@ -5,6 +5,37 @@ This document is the reference design. Each build phase below maps to one or mor
 
 ---
 
+> Sections 1-4 are the original plan (Phase 0). Section 0 records what was actually
+> built and where it deliberately diverged; the README has every number.
+
+## 0. As built
+
+| Area | Planned | Built | Why |
+|---|---|---|---|
+| Log window | all user_logs | 2016-07..2017-03 (155.5M rows) | 18 GB free disk; 90-day windows need only from July |
+| Cold storage | - | rclone to Google Drive for raw + bronze (17 GB), verified by size + hash before local delete | disk; silver/gold stay local |
+| Keys | msno | int32 `member_id`, append-only map | 6.4 GB -> 1.4 GB user_logs |
+| Label population | official Scala (last txn in M-1) | any pre-M transaction expiring in M | official recall 86% -> 99% |
+| Label maturity | - | per-row decided / pending | never count unseen renewals as churn |
+| Main model | LightGBM | **logistic regression** champion | LightGBM won steady months but lost Dec 2016 by 0.051 AUC; gate v2 requires worst-month robustness |
+| Calibration | always isotonic | only if it helps out of time | it worsened the Feb holdout, so not applied |
+| SHAP | `shap` package | LightGBM `pred_contrib` (exact TreeSHAP); coef x value for logreg | same numbers, no heavy dependency |
+| Promotion | best validation month | gate v2 over every out-of-time month (mean + worst) | a Feb-only gate promoted a fragile model |
+| Drift | Evidently | own PSI (~30 lines) | no heavy dependency; model's view of inputs |
+| Orchestration | Prefect | Makefile (`make pipeline`) | enough for monthly batch on one machine |
+| UI | Streamlit | Streamlit console (campaign, budget, monitoring, lookup) | as planned |
+
+Findings that changed the design along the way:
+
+1. **Train/serve parity is enforced by construction and tested:** one population SQL,
+   one feature SQL, one `prepare_features`, one model; the API reproduces batch scores
+   exactly, and a feature snapshot reproduces served scores bit for bit.
+2. **December 2016 was concept drift.** Input PSI stayed stable while AUC fell; only the
+   delayed-label rule catches it. Monitoring therefore treats input drift as a pipeline
+   health check and matured performance as the retraining signal.
+3. **The save rate is an assumption.** KKBox has no campaign data; targeting ranks
+   (EV > risk > random) are robust to it, money figures are not.
+
 ## 1. System diagram
 
 ```mermaid

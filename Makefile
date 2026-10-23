@@ -1,19 +1,31 @@
 PY := uv run python
+.DEFAULT_GOAL := help
 
-.PHONY: setup lint format test
+.PHONY: help setup lint format test check pipeline
+
+help:  ## List targets
+	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sort \
+	  | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 setup:  ## Create/refresh the venv from uv.lock
 	uv sync
 
-lint:
+lint:  ## Ruff
 	uv run ruff check src tests
 
-format:
+format:  ## Ruff format + autofix
 	uv run ruff format src tests
 	uv run ruff check --fix src tests
 
-test:
+test:  ## Test suite (warnings are errors)
 	uv run pytest
+
+check: lint  ## Exactly what CI runs: lint + full tests
+	uv run pytest -o addopts="" -q
+
+# End to end from raw archives (restore them first if archived: make restore LAYER=raw).
+# Each step publishes atomically, so a failure leaves the previous outputs intact.
+pipeline: ingest silver spine features feature-report baselines train select score monitor  ## Raw data -> monitored scores, end to end
 
 .PHONY: download
 download:  ## Fetch KKBox archives from Kaggle (needs ~/.kaggle/access_token + accepted rules)
@@ -117,3 +129,7 @@ monitor:  ## Data quality, drift, matured performance + ok/warn/retrain (exit 3 
 
 monitor-replay:  ## Replay drift monitoring over history (each month vs the 2 before it)
 	$(PY) -m churnguard.monitoring.replay
+
+.PHONY: console
+console:  ## Retention console (Streamlit) on http://localhost:8501
+	uv run streamlit run src/churnguard/console/app.py
