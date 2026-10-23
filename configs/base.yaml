@@ -50,3 +50,13 @@ mlflow:
   tracking_uri: "sqlite:///mlruns.db"   # experiments + model registry; artifacts in mlartifacts/
   experiment: churnguard
   registered_model: churnguard-gbm
+
+retention:
+  # EV_i = p_i * save_rate * CLV_i - cost_i. save_rate is an ASSUMPTION (KKBox has no campaign
+  # data): run a randomised holdout before trusting any money figure.
+  save_rate: 0.20
+  horizon_months: 12
+  baseline_monthly_churn: 0.06
+  contact_cost: 2.0         # NTD per contacted member
+  incentive_months: 1.0     # free months offered to each contacted member
+  budget: null              # NTD per campaign; null = every positive-EV member

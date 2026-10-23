@@ -73,6 +73,18 @@ class MLflowConfig:
 
 
 @dataclass(frozen=True)
+class RetentionConfig:
+    """Retention economics (see decisioning/retention.py)."""
+
+    save_rate: float = 0.20  # ASSUMPTION: no campaign data in KKBox; measure via A/B test
+    horizon_months: int = 12
+    baseline_monthly_churn: float = 0.06
+    contact_cost: float = 2.0  # NTD per contacted member
+    incentive_months: float = 1.0  # free months offered
+    budget: float | None = None  # NTD per campaign; None = every positive-EV member
+
+
+@dataclass(frozen=True)
 class Settings:
     paths: Paths
     kaggle_competition: str
@@ -81,6 +93,7 @@ class Settings:
     storage: StorageConfig = field(default_factory=StorageConfig)
     modeling: ModelingConfig = field(default_factory=ModelingConfig)
     mlflow: MLflowConfig = field(default_factory=MLflowConfig)
+    retention: RetentionConfig = field(default_factory=RetentionConfig)
 
 
 def _resolve(p: str, root: Path) -> Path:
@@ -99,6 +112,7 @@ def load_settings(config_path: str | Path | None = None, root: Path = PROJECT_RO
         storage=StorageConfig(**raw.get("storage", {})),
         modeling=_modeling(raw.get("modeling", {})),
         mlflow=MLflowConfig(**raw.get("mlflow", {})),
+        retention=RetentionConfig(**raw.get("retention", {})),
     )
 
 
