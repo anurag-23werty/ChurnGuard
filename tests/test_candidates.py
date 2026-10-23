@@ -52,3 +52,21 @@ def test_sklearn_wrapper_and_blend_share_one_interface(data):
 def test_blend_weights_must_sum_to_one():
     with pytest.raises(ValueError, match="sum to 1"):
         BlendModel([object(), object()], [0.5, 0.6])
+
+
+def test_logreg_contributions_sum_to_logit_and_name_input_features(data):
+    from scipy.special import logit
+
+    X, y = data
+    X = X.assign(renew_rate=X.renew)  # a feature whose name extends another's
+    feats = ["renew", "noise", "c", "renew_rate"]
+    lr = SklearnChurnModel(make_logreg(["renew", "noise", "renew_rate"], ["c"]), feats)
+    lr.fit(X, y)
+    contrib = lr.contributions(X.head(50))
+    assert list(contrib.columns) == feats
+    intercept = lr.pipeline.named_steps["clf"].intercept_[0]
+    assert (contrib.sum(axis=1) + intercept).to_numpy() == pytest.approx(
+        logit(lr.predict_proba(X.head(50))), abs=1e-6)
+    # Low renew pushes towards churn: it should lead the reasons for low-renew members.
+    low = X[X.renew < 0.1].head(20)
+    assert all(r and r[0][0] in {"renew", "renew_rate"} for r in lr.reason_codes(low))

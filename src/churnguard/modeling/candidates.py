@@ -53,6 +53,35 @@ class SklearnChurnModel:
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         return self.pipeline.predict_proba(X[self.features])[:, 1]
 
+    def contributions(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Per input feature: sum of coef x transformed value over its output columns
+        (value, missing indicator, one-hot levels). Inputs are standardised, so this is the
+        pull on the log-odds relative to an average member."""
+        prep, clf = self.pipeline.named_steps["prep"], self.pipeline.named_steps["clf"]
+        Z = prep.transform(X[self.features])
+        terms = Z * clf.coef_.ravel()
+        owner = [_owning_feature(name, self.features) for name in prep.get_feature_names_out()]
+        df = pd.DataFrame(terms, columns=owner, index=X.index)
+        return df.T.groupby(level=0, sort=False).sum().T.reindex(columns=self.features,
+                                                                 fill_value=0.0)
+
+    def reason_codes(self, X: pd.DataFrame, k: int = 3) -> list[list[tuple[str, float]]]:
+        c = self.contributions(X)
+        vals, names = c.to_numpy(), c.columns.to_list()
+        order = np.argsort(-vals, axis=1)[:, :k]
+        return [[(names[j], float(vals[i, j])) for j in row if vals[i, j] > 0]
+                for i, row in enumerate(order)]
+
+
+def _owning_feature(output_name: str, features: list[str]) -> str:
+    """Map a ColumnTransformer output ('num__x', 'num__missingindicator_x', 'cat__city_13')
+    back to its input feature, preferring the longest matching name."""
+    name = output_name.split("__", 1)[1].removeprefix("missingindicator_")
+    matches = [f for f in features if name == f or name.startswith(f"{f}_")]
+    if not matches:
+        raise KeyError(f"cannot map {output_name!r} to an input feature")
+    return max(matches, key=len)
+
 
 @dataclass
 class BlendModel:
