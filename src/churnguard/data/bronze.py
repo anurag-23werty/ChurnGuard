@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -29,6 +28,7 @@ import pyarrow.parquet as pq
 
 from churnguard.config import IngestConfig, Settings, get_settings
 from churnguard.data.catalog import TABLES, TableSpec
+from churnguard.data.fs import check_free_disk, fresh_staging, publish
 from churnguard.data.schemas import BY_TABLE
 from churnguard.data.sources import open_stream, resolve_raw_file
 from churnguard.logging_utils import get_logger, setup_logging
@@ -205,9 +205,7 @@ def ingest_table(
         else None
     )
     final_dir = settings.paths.bronze / spec.name
-    staging_dir = settings.paths.bronze / f".staging_{spec.name}"
-    shutil.rmtree(staging_dir, ignore_errors=True)
-    staging_dir.mkdir(parents=True)
+    staging_dir = fresh_staging(final_dir)
 
     schema = _output_schema(spec)
     manifest: dict = {
@@ -273,23 +271,8 @@ def ingest_table(
     manifest["duration_s"] = round(time.monotonic() - t0, 1)
     (staging_dir / "_manifest.json").write_text(json.dumps(manifest, indent=2))
 
-    # Atomic-ish swap: readers never see a half-written table.
-    if final_dir.exists():
-        backup = final_dir.with_name(f".old_{spec.name}")
-        final_dir.replace(backup)
-        staging_dir.replace(final_dir)
-        shutil.rmtree(backup)
-    else:
-        staging_dir.replace(final_dir)
+    publish(staging_dir, final_dir)
     return manifest
-
-
-def check_free_disk(path: Path, min_gb: float) -> None:
-    path.mkdir(parents=True, exist_ok=True)
-    free_gb = shutil.disk_usage(path).free / 1e9
-    if free_gb < min_gb:
-        raise RuntimeError(f"only {free_gb:.1f} GB free at {path}; need >= {min_gb} GB")
-    log.info("free disk: %.1f GB", free_gb)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -300,7 +283,8 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     settings = get_settings()
-    check_free_disk(settings.paths.bronze, settings.ingest.min_free_disk_gb)
+    free_gb = check_free_disk(settings.paths.bronze, settings.ingest.min_free_disk_gb)
+    log.info("free disk: %.1f GB", free_gb)
     for name in args.tables:
         m = ingest_table(TABLES[name], settings, args.months)
         total = sum(s["rows_written"] for s in m["sources"].values())
