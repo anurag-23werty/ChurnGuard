@@ -13,6 +13,7 @@ models/
 reports/drift/
 reports/dq/
 reports/labels/
+reports/features/
 
 # Python
 __pycache__/

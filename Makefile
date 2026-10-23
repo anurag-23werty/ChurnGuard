@@ -51,3 +51,10 @@ spine:  ## Point-in-time label spine (gold) + validation vs official labels
 
 reference:  ## Fetch KKBox's official labeller (not redistributed in git)
 	uv run kaggle competitions download kkbox-churn-prediction-challenge -f WSDMChurnLabeller.scala -p docs/reference -q
+
+.PHONY: features feature-report
+features:  ## Point-in-time features for every spine month (gold/features)
+	$(PY) -m churnguard.features.build
+
+feature-report:  ## Univariate AUC/null report; fails if any single feature looks leaky
+	$(PY) -m churnguard.features.diagnostics

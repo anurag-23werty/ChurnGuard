@@ -12,7 +12,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - [x] Phase 1: ingestion (raw → bronze Parquet)
 - [x] Phase 2: cleaning (silver)
 - [x] Phase 3: label spine
-- [ ] Phase 4: point-in-time features
+- [x] Phase 4: point-in-time features
 - [ ] Phase 5: baselines
 - [ ] Phase 6: LightGBM + calibration + SHAP
 - [ ] Phase 7: retention decisioning
@@ -33,6 +33,8 @@ make ingest                      # raw -> bronze Parquet + DQ report
 make ingest MONTHS=2016-10:2017-03   # or a smaller window on a constrained machine
 make silver                      # bronze -> silver (cleaned, member_id keyed)
 make spine                       # label spine + validation vs official labels
+make features                    # 52 point-in-time features per spine row
+make feature-report              # univariate AUCs + leak smell test
 ```
 
 Bronze layout: `data/bronze/<table>/month=YYYY-MM/<source>.parquet` with a `_manifest.json`
@@ -91,3 +93,22 @@ transactions before it; features must too. Port of KKBox's official `WSDMChurnLa
 Known gap: ~1/3 of disagreements are "renewed then cancelled, never renewed again", which the
 official labels count as churn and the Scala logic does not. March needs April
 transactions to mature, so the March holdout uses the official train_v2 labels.
+
+## Features
+
+`data/gold/features/label_month=YYYY-MM/` = spine keys + label + 52 features, all computed
+from events strictly before `as_of_date`. `src/churnguard/features/registry.yaml` is the
+contract (family, source, window, dtype, description); the builder refuses unregistered or
+missing columns. Families: **member** (7), **billing** (24), **engagement** (21; windows
+capped at 90 days by log coverage). ~1M rows/month in ~4.5 s.
+
+Leakage defences, each with a test that fails if the guard is removed (verified by
+mutating the code):
+
+- **Poisoned future:** extreme events on/after `as_of_date` in every source; features must
+  be byte-identical.
+- **Mixed as-of dates:** one member at two as-of dates in one query; the earlier row must
+  not see the later events (the case serving and backfills hit).
+- **Late registrations:** `registration_date` after `as_of_date` gives NULL tenure.
+- **Leak smell test** (`make feature-report`): fails if any single feature has AUC >= 0.95.
+  Current max: `auto_renew_share_180d` 0.775.
